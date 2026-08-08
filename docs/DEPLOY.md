@@ -183,27 +183,48 @@ journalctl -u stock-analyzer -f
 
 ## ⚙️ 配置说明
 
-### 必须配置项
+所有配置通过项目根目录的 `.env` 文件管理（模板 `.env.example`，已被 gitignore 忽略）：
+
+```bash
+cp .env.example .env
+vim .env   # 填入真实配置
+```
+
+### 🔴 必须配置项
 
 | 配置项 | 说明 | 获取方式 |
 |--------|------|----------|
 | `OPENAI_API_KEY` | AI 分析必需（OpenAI 兼容格式） | OpenAI / DeepSeek / 通义千问等平台 |
+| `OPENAI_BASE_URL` | AI API 地址（如 `https://api.deepseek.com/v1`） | 供应商文档 |
+| `OPENAI_MODEL` | 模型名称（如 `deepseek-chat`） | 供应商文档 |
 | `STOCK_LIST` | 自选股列表 | 逗号分隔的股票代码 |
-| `WECHAT_WEBHOOK_URL` 或 `BARK_DEVICE_KEY` | 通知渠道（企微 / Bark，二选一或同时配置） | 企业微信群机器人 / Bark App |
 
-### 可选配置项
+### 🟢 推荐配置项
+
+| 配置项 | 说明 | 获取方式 |
+|--------|------|----------|
+| `WECHAT_WEBHOOK_URL` 或 `BARK_DEVICE_KEY` | 通知渠道（企微 / Bark，二选一或同时配置） | 企业微信群机器人 / Bark App |
+| `TAVILY_API_KEYS` | 新闻搜索（免费 1000 次/月，支持多 Key 逗号分隔自动轮换） | https://tavily.com/ |
+
+### ⚪ 可选配置项
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
+| `BARK_SERVER_URL` | `https://api.day.app` | Bark 服务器地址（自建可改） |
+| `BARK_GROUP` | `股票分析` | Bark 通知分组 |
+| `BARK_KEY_USER_A/B/C...` | 无 | 多用户推送占位符（配合 push_config.yaml） |
+| `SERPAPI_KEYS` | 无 | 备用搜索引擎（免费 100 次/月） |
+| `TUSHARE_TOKEN` | 无 | Tushare 数据源（免费积分制） |
 | `OPENAI_REQUEST_DELAY` | `2.0` | 请求间隔（秒） |
 | `OPENAI_MAX_RETRIES` | `5` | 最大重试次数 |
 | `OPENAI_RETRY_DELAY` | `5.0` | 重试基础延时（秒） |
-| `BARK_SERVER_URL` | `https://api.day.app` | Bark 服务器地址（自建可改） |
-| `BARK_GROUP` | `股票分析` | Bark 通知分组 |
 | `SCHEDULE_ENABLED` | `false` | 是否启用定时任务 |
 | `SCHEDULE_TIME` | `18:00` | 每日执行时间 |
 | `MARKET_REVIEW_ENABLED` | `true` | 是否启用大盘复盘 |
-| `TAVILY_API_KEYS` | - | 新闻搜索（可选） |
+| `LOG_DIR` | `./logs` | 日志目录 |
+| `LOG_LEVEL` | `INFO` | 日志级别 |
+| `MAX_WORKERS` | `3` | 并发线程数（低并发防封禁） |
+| `DEBUG` | `false` | 调试模式 |
 
 ---
 
@@ -441,6 +462,12 @@ A: Actions → 选择运行记录 → Artifacts → 下载 `analysis-reports-xxx
 
 **Q: 免费额度够用吗？**
 A: 每次运行约 2-5 分钟，一个月 22 个工作日 = 44-110 分钟，远低于 2000 分钟限制。
+
+**Q: Tavily 免费额度用完了怎么办？**
+A: 在 `TAVILY_API_KEYS` 中配置多个 Key（逗号分隔）。某个 Key 配额用尽后系统自动冷却 30 天并切换下一个 Key（状态持久化在 `data/search_keys_state.json`），无需人工干预。
+
+**Q: 如何给多个用户推送不同的内容？**
+A: 复制 `push_config.example.yaml` 为 `push_config.yaml`，为每个用户配置独立的 `device_key`（可用 `${BARK_KEY_USER_A}` 等占位符引用 secrets）和推送范围（大盘/个股）。用户指定的股票会自动纳入分析范围。
 
 ---
 

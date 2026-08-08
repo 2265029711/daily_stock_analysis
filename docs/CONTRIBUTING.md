@@ -20,7 +20,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/ZhuLinsen/daily_stock_analysis.git
+git clone <your-fork-url> daily_stock_analysis
 cd daily_stock_analysis
 
 # 创建虚拟环境
@@ -31,9 +31,26 @@ source venv/bin/activate  # Linux/Mac
 # 安装依赖
 pip install -r requirements.txt
 
-# 配置环境变量
+# 配置环境变量（必填项：OPENAI_API_KEY/BASE_URL/MODEL/STOCK_LIST）
 cp .env.example .env
+vim .env
+
+# 运行（src layout，需 PYTHONPATH）
+export PYTHONPATH=src   # Windows: set PYTHONPATH=src
+python -m stock_analysis.main --dry-run   # 验证配置和数据获取
 ```
+
+### 运行测试
+
+```bash
+# 安装测试依赖
+pip install pytest
+
+# 运行全部单元测试（tests/ 目录，约 73 个用例）
+pytest tests/ -v
+```
+
+> 注意：单测使用 mock，不触发真实 API 调用；本地存在 `.env` 时测试会自动屏蔽真实配置。
 
 ### 提交流程
 
@@ -70,15 +87,15 @@ docs: 更新 README 部署说明
 - Python 代码遵循 PEP 8
 - 函数和类需要添加 docstring
 - 重要逻辑添加注释
-- 新功能需要更新相关文档
+- 新功能需要更新相关文档和单元测试
 
 ## 📋 优先贡献方向
 
 查看 [Roadmap](README.md#-roadmap) 了解当前需要的功能：
 
 - 🔔 新通知渠道（钉钉、飞书、Telegram）
-- 🤖 新 AI 模型支持（GPT-4、Claude）
-- 📊 新数据源接入
+- 🤖 新 AI 模型支持（Claude、本地 Ollama）
+- 📊 新数据源接入（东方财富、同花顺）
 - 🐛 Bug 修复和性能优化
 - 📖 文档完善和翻译
 
