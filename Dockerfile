@@ -23,9 +23,11 @@ COPY requirements.txt .
 # 安装 Python 依赖
 RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 复制应用代码
-COPY *.py ./
-COPY data_provider/ ./data_provider/
+# 复制应用代码（src layout）
+COPY src/ ./src/
+
+# 设置包搜索路径
+ENV PYTHONPATH=/app/src
 
 # 创建数据目录
 RUN mkdir -p /app/data /app/logs /app/reports
@@ -43,4 +45,4 @@ HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import sys; sys.exit(0)"
 
 # 默认命令（可被覆盖）
-CMD ["python", "main.py", "--schedule"]
+CMD ["python", "-m", "stock_analysis.main", "--schedule"]

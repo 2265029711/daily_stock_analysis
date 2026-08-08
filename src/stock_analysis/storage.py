@@ -38,7 +38,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.exc import IntegrityError
 
-from config import get_config
+from stock_analysis.config import get_config
 
 logger = logging.getLogger(__name__)
 

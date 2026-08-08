@@ -73,7 +73,7 @@ docker-compose up -d
 docker-compose exec stock-analyzer bash
 
 # 手动执行一次分析
-docker-compose exec stock-analyzer python main.py --no-notify
+docker-compose exec stock-analyzer python -m stock_analysis.main --no-notify
 ```
 
 ### 5. 数据持久化
@@ -116,14 +116,17 @@ vim .env  # 填入配置
 ### 4. 运行
 
 ```bash
+# 设置包搜索路径（src layout）
+export PYTHONPATH=/opt/stock-analyzer/src
+
 # 单次运行
-python main.py
+python -m stock_analysis.main
 
 # 定时任务模式（前台运行）
-python main.py --schedule
+python -m stock_analysis.main --schedule
 
 # 后台运行（使用 nohup）
-nohup python main.py --schedule > /dev/null 2>&1 &
+nohup python -m stock_analysis.main --schedule > /dev/null 2>&1 &
 ```
 
 ---
@@ -149,7 +152,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/stock-analyzer
 Environment="PATH=/opt/stock-analyzer/venv/bin"
-ExecStart=/opt/stock-analyzer/venv/bin/python main.py --schedule
+ExecStart=/opt/stock-analyzer/venv/bin/python -m stock_analysis.main --schedule
 Restart=always
 RestartSec=30
 
@@ -219,10 +222,11 @@ environment:
 
 ### 直接部署方式
 
-编辑 `main.py` 顶部：
-```python
-os.environ["http_proxy"] = "http://your-proxy:port"
-os.environ["https_proxy"] = "http://your-proxy:port"
+在启动命令前设置环境变量：
+```bash
+export http_proxy=http://your-proxy:port
+export https_proxy=http://your-proxy:port
+python -m stock_analysis.main
 ```
 
 ---
@@ -243,7 +247,7 @@ tail -f /opt/stock-analyzer/logs/stock_analysis_*.log
 
 ```bash
 # 检查进程
-ps aux | grep main.py
+ps aux | grep stock_analysis.main
 
 # 检查最近的报告
 ls -la /opt/stock-analyzer/reports/

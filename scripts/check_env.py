@@ -54,7 +54,7 @@ def test_config():
     """测试配置加载"""
     print_header("1. 配置加载测试")
     
-    from config import get_config
+    from stock_analysis.config import get_config
     config = get_config()
     
     print_section("基础配置")
@@ -91,7 +91,7 @@ def view_database():
     """查看数据库内容"""
     print_header("2. 数据库内容查看")
     
-    from storage import get_db
+    from stock_analysis.storage import get_db
     from sqlalchemy import text
     
     db = get_db()
@@ -172,7 +172,7 @@ def test_data_fetch(stock_code: str = "600519"):
     """测试数据获取"""
     print_header("3. 数据获取测试")
     
-    from data_provider import DataFetcherManager
+    from stock_analysis.data_provider import DataFetcherManager
     
     manager = DataFetcherManager()
     
@@ -207,8 +207,8 @@ def test_llm():
     """测试 LLM 调用"""
     print_header("4. LLM (OpenAI 兼容) 调用测试")
     
-    from analyzer import OpenAIAnalyzer
-    from config import get_config
+    from stock_analysis.analyzer import OpenAIAnalyzer
+    from stock_analysis.config import get_config
     import time
     
     config = get_config()
@@ -313,8 +313,8 @@ def test_notification():
     """测试通知推送"""
     print_header("5. 通知推送测试")
     
-    from notification import NotificationService
-    from config import get_config
+    from stock_analysis.notification import NotificationService
+    from stock_analysis.config import get_config
     
     config = get_config()
     service = NotificationService()
@@ -400,7 +400,7 @@ def query_stock_data(stock_code: str, days: int = 10):
     """查询指定股票的数据"""
     print_header(f"查询股票数据: {stock_code}")
     
-    from storage import get_db
+    from stock_analysis.storage import get_db
     from sqlalchemy import text
     
     db = get_db()

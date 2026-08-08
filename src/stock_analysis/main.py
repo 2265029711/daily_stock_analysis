@@ -10,10 +10,10 @@ A股自选股智能分析系统 - 主调度程序
 3. 全局异常处理，确保单股失败不影响整体
 4. 提供命令行入口
 
-使用方式：
-    python main.py              # 正常运行
-    python main.py --debug      # 调试模式
-    python main.py --dry-run    # 仅获取数据不分析
+使用方式（在项目根目录，需 PYTHONPATH=src）：
+    python -m stock_analysis.main              # 正常运行
+    python -m stock_analysis.main --debug      # 调试模式
+    python -m stock_analysis.main --dry-run    # 仅获取数据不分析
 
 交易理念（已融入分析）：
 - 严进策略：不追高，乖离率 > 5% 不买入
@@ -32,15 +32,15 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from config import get_config, Config
-from storage import get_db, DatabaseManager
-from data_provider import DataFetcherManager
-from data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
-from analyzer import OpenAIAnalyzer, AnalysisResult, STOCK_NAME_MAP
-from notification import NotificationService, send_daily_report, send_notifications, send_text_notifications
-from search_service import SearchService, SearchResponse
-from stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
-from market_analyzer import MarketAnalyzer
+from stock_analysis.config import get_config, Config
+from stock_analysis.storage import get_db, DatabaseManager
+from stock_analysis.data_provider import DataFetcherManager
+from stock_analysis.data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
+from stock_analysis.analyzer import OpenAIAnalyzer, AnalysisResult, STOCK_NAME_MAP
+from stock_analysis.notification import NotificationService, send_daily_report, send_notifications, send_text_notifications
+from stock_analysis.search_service import SearchService, SearchResponse
+from stock_analysis.stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
+from stock_analysis.market_analyzer import MarketAnalyzer
 
 # 配置日志格式
 LOG_FORMAT = '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s'
@@ -585,14 +585,14 @@ def parse_arguments() -> argparse.Namespace:
         description='A股自选股智能分析系统',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
-示例:
-  python main.py                    # 正常运行
-  python main.py --debug            # 调试模式
-  python main.py --dry-run          # 仅获取数据，不进行 AI 分析
-  python main.py --stocks 600519,000001  # 指定分析特定股票
-  python main.py --no-notify        # 不发送推送通知
-  python main.py --schedule         # 启用定时任务模式
-  python main.py --market-review    # 仅运行大盘复盘
+示例（在项目根目录运行，需 PYTHONPATH=src）:
+  python -m stock_analysis.main                    # 正常运行
+  python -m stock_analysis.main --debug            # 调试模式
+  python -m stock_analysis.main --dry-run          # 仅获取数据，不进行 AI 分析
+  python -m stock_analysis.main --stocks 600519,000001  # 指定分析特定股票
+  python -m stock_analysis.main --no-notify        # 不发送推送通知
+  python -m stock_analysis.main --schedule         # 启用定时任务模式
+  python -m stock_analysis.main --market-review    # 仅运行大盘复盘
         '''
     )
     
@@ -803,7 +803,7 @@ def main() -> int:
             logger.info("模式: 定时任务")
             logger.info(f"每日执行时间: {config.schedule_time}")
             
-            from scheduler import run_with_schedule
+            from stock_analysis.scheduler import run_with_schedule
             
             def scheduled_task():
                 run_full_analysis(config, args, stock_codes)

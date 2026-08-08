@@ -112,8 +112,8 @@ class Config:
         2. .env 文件
         3. 代码中的默认值
         """
-        # 加载项目根目录下的 .env 文件
-        env_path = Path(__file__).parent / '.env'
+        # 加载项目根目录下的 .env 文件（src/stock_analysis/ 上两级 = 项目根）
+        env_path = Path(__file__).resolve().parents[2] / '.env'
         load_dotenv(dotenv_path=env_path)
         
         # 解析自选股列表（逗号分隔）

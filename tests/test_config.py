@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from config import Config, get_config
+from stock_analysis.config import Config, get_config
 
 
 @pytest.fixture(autouse=True)

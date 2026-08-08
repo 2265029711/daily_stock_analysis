@@ -16,8 +16,8 @@ from typing import List, Dict, Any, Optional
 
 import requests
 
-from config import get_config
-from analyzer import AnalysisResult
+from stock_analysis.config import get_config
+from stock_analysis.analyzer import AnalysisResult
 
 logger = logging.getLogger(__name__)
 
@@ -947,8 +947,8 @@ class NotificationService:
             date_str = datetime.now().strftime('%Y%m%d')
             filename = f"report_{date_str}.md"
         
-        # 确保 reports 目录存在
-        reports_dir = Path(__file__).parent / 'reports'
+        # 确保 reports 目录存在（项目根目录，src/stock_analysis/ 上两级）
+        reports_dir = Path(__file__).resolve().parents[2] / 'reports'
         reports_dir.mkdir(parents=True, exist_ok=True)
         
         filepath = reports_dir / filename

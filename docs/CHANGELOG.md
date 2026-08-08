@@ -17,6 +17,13 @@
   - 新增 `BARK_DEVICE_KEY` / `BARK_SERVER_URL` / `BARK_GROUP` 配置
 - ✅ 新增单元测试（pytest）：`tests/test_config.py`、`tests/test_analyzer.py`、`tests/test_notification.py`
 
+### 重构
+- 📦 项目结构改为标准 src layout
+  - 源码移入 `src/stock_analysis/` 主包，运行方式改为 `PYTHONPATH=src python -m stock_analysis.main`
+  - 辅助脚本移至 `scripts/check_env.py`，文档移至 `docs/`
+  - Dockerfile / GitHub Actions / 部署文档同步更新
+  - 删除误建的空 `package.json` / `package-lock.json`
+
 ### 计划中
 - 钉钉机器人支持
 - 飞书机器人支持

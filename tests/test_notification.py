@@ -6,11 +6,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from analyzer import AnalysisResult
-from config import Config, get_config
-from notification import BarkNotifier, NotificationService, send_notifications, send_text_notifications
+from stock_analysis.analyzer import AnalysisResult
+from stock_analysis.config import Config, get_config
+from stock_analysis.notification import BarkNotifier, NotificationService, send_notifications, send_text_notifications
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +60,7 @@ class TestBarkNotifier:
         mock_response.status_code = 200
         mock_response.json.return_value = {'code': 200, 'message': 'success'}
 
-        with patch('notification.requests.post', return_value=mock_response) as mock_post:
+        with patch('stock_analysis.notification.requests.post', return_value=mock_response) as mock_post:
             ok = bark.send_to_bark('标题', '内容')
 
         assert ok is True
@@ -81,7 +81,7 @@ class TestBarkNotifier:
         mock_response.status_code = 200
         mock_response.json.return_value = {'code': 200}
 
-        with patch('notification.requests.post', return_value=mock_response) as mock_post:
+        with patch('stock_analysis.notification.requests.post', return_value=mock_response) as mock_post:
             bark.send_to_bark('标题', '内容')
 
         args, kwargs = mock_post.call_args
@@ -97,7 +97,7 @@ class TestBarkNotifier:
         mock_response = Mock()
         mock_response.status_code = 500
 
-        with patch('notification.requests.post', return_value=mock_response):
+        with patch('stock_analysis.notification.requests.post', return_value=mock_response):
             ok = bark.send_to_bark('标题', '内容')
 
         assert ok is False
@@ -112,7 +112,7 @@ class TestBarkNotifier:
         mock_response.status_code = 200
         mock_response.json.return_value = {'code': 500, 'message': 'error'}
 
-        with patch('notification.requests.post', return_value=mock_response):
+        with patch('stock_analysis.notification.requests.post', return_value=mock_response):
             ok = bark.send_to_bark('标题', '内容')
 
         assert ok is False
@@ -123,7 +123,7 @@ class TestBarkNotifier:
         Config.reset_instance()
         bark = BarkNotifier()
 
-        with patch('notification.requests.post', side_effect=Exception('网络错误')):
+        with patch('stock_analysis.notification.requests.post', side_effect=Exception('网络错误')):
             ok = bark.send_to_bark('标题', '内容')
 
         assert ok is False
@@ -131,7 +131,7 @@ class TestBarkNotifier:
     def test_send_without_key(self):
         """未配置 Key 时不发请求直接返回 False"""
         bark = BarkNotifier()
-        with patch('notification.requests.post') as mock_post:
+        with patch('stock_analysis.notification.requests.post') as mock_post:
             ok = bark.send_to_bark('标题', '内容')
         assert ok is False
         mock_post.assert_not_called()
@@ -160,7 +160,7 @@ class TestMultiChannel:
         monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
         Config.reset_instance()
 
-        with patch('notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
             status = send_notifications([make_result()], title='测试')
 
         assert status == {'wechat': True, 'bark': True}
@@ -172,7 +172,7 @@ class TestMultiChannel:
         monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
         Config.reset_instance()
 
-        with patch('notification.requests.post', side_effect=mock_requests_factory(wechat_ok=False)) as mock_post:
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory(wechat_ok=False)) as mock_post:
             status = send_notifications([make_result()], title='测试')
 
         assert status['wechat'] is False
@@ -193,7 +193,7 @@ class TestMultiChannel:
             response.json.return_value = {'code': 200}
             return response
 
-        with patch('notification.requests.post', side_effect=fake_post):
+        with patch('stock_analysis.notification.requests.post', side_effect=fake_post):
             status = send_notifications([make_result()], title='测试')
 
         assert status['wechat'] is False
@@ -204,7 +204,7 @@ class TestMultiChannel:
         monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
         Config.reset_instance()
 
-        with patch('notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
             status = send_notifications([make_result()], title='测试')
 
         assert status == {'bark': True}
@@ -217,7 +217,7 @@ class TestMultiChannel:
         monkeypatch.setenv('WECHAT_WEBHOOK_URL', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=abc')
         Config.reset_instance()
 
-        with patch('notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
             status = send_notifications([make_result()], title='测试')
 
         assert status == {'wechat': True}
@@ -228,7 +228,7 @@ class TestMultiChannel:
     def test_no_channel_configured(self):
         """未配置任何渠道时返回空字典，不发请求"""
         Config.reset_instance()
-        with patch('notification.requests.post') as mock_post:
+        with patch('stock_analysis.notification.requests.post') as mock_post:
             status = send_notifications([make_result()], title='测试')
         assert status == {}
         mock_post.assert_not_called()
@@ -239,7 +239,7 @@ class TestMultiChannel:
         monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
         Config.reset_instance()
 
-        with patch('notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
             status = send_text_notifications('复盘报告内容', title='大盘复盘')
 
         assert status == {'wechat': True, 'bark': True}

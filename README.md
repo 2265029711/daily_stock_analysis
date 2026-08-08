@@ -86,10 +86,11 @@ pip install -r requirements.txt
 cp .env.example .env
 vim .env  # 填入你的 API Key
 
-# 运行
-python main.py                    # 完整分析
-python main.py --market-review    # 仅大盘复盘
-python main.py --schedule         # 定时任务模式
+# 运行（src layout）
+export PYTHONPATH=src                                  # Windows: set PYTHONPATH=src
+python -m stock_analysis.main                          # 完整分析
+python -m stock_analysis.main --market-review          # 仅大盘复盘
+python -m stock_analysis.main --schedule               # 定时任务模式
 ```
 
 ### 方式三：Docker 部署
@@ -187,22 +188,28 @@ schedule:
 
 ```
 daily_stock_analysis/
-├── main.py              # 主程序入口
-├── analyzer.py          # AI 分析器（OpenAI 兼容）
-├── market_analyzer.py   # 大盘复盘分析
-├── search_service.py    # 新闻搜索服务
-├── notification.py      # 消息推送
-├── scheduler.py         # 定时任务
-├── storage.py           # 数据存储
-├── config.py            # 配置管理
-├── data_provider/       # 数据源适配器
-│   ├── akshare_fetcher.py
-│   ├── tushare_fetcher.py
-│   ├── baostock_fetcher.py
-│   └── yfinance_fetcher.py
-├── .github/workflows/   # GitHub Actions
-├── Dockerfile           # Docker 镜像
-└── docker-compose.yml   # Docker 编排
+├── src/                  # 源码（src layout）
+│   └── stock_analysis/   # 主包
+│       ├── main.py             # 主程序入口
+│       ├── analyzer.py         # AI 分析器（OpenAI 兼容）
+│       ├── market_analyzer.py  # 大盘复盘分析
+│       ├── search_service.py   # 新闻搜索服务
+│       ├── notification.py     # 消息推送（企业微信 / Bark）
+│       ├── scheduler.py        # 定时任务
+│       ├── storage.py          # 数据存储
+│       ├── config.py           # 配置管理
+│       └── data_provider/      # 数据源适配器
+│           ├── akshare_fetcher.py
+│           ├── tushare_fetcher.py
+│           ├── baostock_fetcher.py
+│           └── yfinance_fetcher.py
+├── tests/                # 单元测试（pytest）
+├── scripts/              # 辅助脚本（check_env.py 环境检查）
+├── docs/                 # 文档（DEPLOY/CHANGELOG/CONTRIBUTING）
+├── .github/workflows/    # GitHub Actions
+├── Dockerfile            # Docker 镜像
+├── docker-compose.yml    # Docker 编排
+└── requirements.txt      # 依赖
 ```
 
 ## 🗺️ Roadmap

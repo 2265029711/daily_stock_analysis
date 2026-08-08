@@ -19,8 +19,8 @@ from typing import Optional, Dict, Any, List
 import akshare as ak
 import pandas as pd
 
-from config import get_config
-from search_service import SearchService
+from stock_analysis.config import get_config
+from stock_analysis.search_service import SearchService
 
 logger = logging.getLogger(__name__)
 

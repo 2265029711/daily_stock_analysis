@@ -51,6 +51,9 @@ jobs:
           OPENAI_MAX_RETRIES: '5'
           OPENAI_RETRY_DELAY: '5.0'
           
+          # src layout: 包路径
+          PYTHONPATH: src
+          
           # 数据源 (可选)
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           
@@ -82,11 +85,11 @@ jobs:
           echo "=========================================="
           
           if [ "$MODE" = "market-only" ]; then
-            python main.py --market-review
+            python -m stock_analysis.main --market-review
           elif [ "$MODE" = "stocks-only" ]; then
-            python main.py --no-market-review
+            python -m stock_analysis.main --no-market-review
           else
-            python main.py
+            python -m stock_analysis.main
           fi
       
       - name: 上传分析报告
