@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 ===================================
 A股自选股智能分析系统 - 通知层
@@ -338,13 +338,13 @@ class NotificationService:
         elif advice in ['持有'] or 55 <= score < 65:
             return ('持有', '🟡', '持有')
         elif advice in ['观望'] or 45 <= score < 55:
-            return ('观望', '⚪', '观望')
+            return ('观望', '🟡', '观望')
         elif advice in ['减仓'] or 35 <= score < 45:
             return ('减仓', '🟠', '减仓')
         elif advice in ['卖出', '强烈卖出'] or score < 35:
             return ('卖出', '🔴', '卖出')
         else:
-            return ('观望', '⚪', '观望')
+            return ('观望', '🟡', '观望')
     
     def generate_dashboard_report(
         self, 
