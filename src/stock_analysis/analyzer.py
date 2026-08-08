@@ -838,28 +838,39 @@ class OpenAIAnalyzer:
         解析 AI 响应（决策仪表盘版）
         
         尝试从响应中提取 JSON 格式的分析结果，包含 dashboard 字段
-        如果解析失败，尝试智能提取或返回默认结果
+        解析失败时依次尝试：
+        1. 修复常见 JSON 问题（尾随逗号/布尔值等）
+        2. 修复截断的 JSON（LLM 输出超限时，从后往前找最后一个完整对象）
+        3. 降级为纯文本解析（不再倾倒原始 JSON）
         """
-        try:
-            # 清理响应文本：移除 markdown 代码块标记
-            cleaned_text = response_text
-            if '```json' in cleaned_text:
-                cleaned_text = cleaned_text.replace('```json', '').replace('```', '')
-            elif '```' in cleaned_text:
-                cleaned_text = cleaned_text.replace('```', '')
+        # 清理响应文本：移除 markdown 代码块标记
+        cleaned_text = response_text
+        if '```json' in cleaned_text:
+            cleaned_text = cleaned_text.replace('```json', '').replace('```', '')
+        elif '```' in cleaned_text:
+            cleaned_text = cleaned_text.replace('```', '')
+        
+        # 尝试找到 JSON 内容
+        json_start = cleaned_text.find('{')
+        json_end = cleaned_text.rfind('}') + 1
+        
+        if json_start >= 0 and json_end > json_start:
+            json_str = cleaned_text[json_start:json_end]
             
-            # 尝试找到 JSON 内容
-            json_start = cleaned_text.find('{')
-            json_end = cleaned_text.rfind('}') + 1
+            # 修复常见的 JSON 问题（尾随逗号/注释/布尔值）
+            json_str = self._fix_json_string(json_str)
             
-            if json_start >= 0 and json_end > json_start:
-                json_str = cleaned_text[json_start:json_end]
-                
-                # 尝试修复常见的 JSON 问题
-                json_str = self._fix_json_string(json_str)
-                
+            data = None
+            try:
                 data = json.loads(json_str)
-                
+            except json.JSONDecodeError as e:
+                # 尝试修复截断的 JSON（LLM 输出超限被截断）
+                logger.warning(f"JSON 解析失败: {e}，尝试修复截断 JSON...")
+                data = self._repair_truncated_json(json_str)
+                if data is not None:
+                    logger.info("截断 JSON 修复成功，缺失字段使用默认值")
+            
+            if data is not None:
                 # 提取 dashboard 数据
                 dashboard = data.get('dashboard', None)
                 
@@ -901,14 +912,46 @@ class OpenAIAnalyzer:
                     data_sources=data.get('data_sources', '技术面数据'),
                     success=True,
                 )
-            else:
-                # 没有找到 JSON，尝试从纯文本中提取信息
-                logger.warning(f"无法从响应中提取 JSON，使用原始文本分析")
-                return self._parse_text_response(response_text, code, name)
-                
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON 解析失败: {e}，尝试从文本提取")
-            return self._parse_text_response(response_text, code, name)
+        
+        # 没有找到有效 JSON，降级为纯文本解析
+        logger.warning(f"无法解析 JSON 响应，使用文本降级解析")
+        return self._parse_text_response(response_text, code, name)
+    
+    def _repair_truncated_json(self, json_str: str) -> Optional[Dict[str, Any]]:
+        """
+        修复被截断的 JSON（LLM 输出超限时）
+        
+        策略：从后往前遍历所有 '}' 位置，逐个尝试解析，
+        截断点之后的字段和外层闭合括号会丢失，需要补全未闭合的花括号
+        
+        Args:
+            json_str: 可能被截断的 JSON 字符串
+            
+        Returns:
+            解析成功的字典，无法修复返回 None
+        """
+        # 收集所有右花括号位置（从后往前）
+        brace_positions = [i for i, ch in enumerate(json_str) if ch == '}']
+        
+        for pos in reversed(brace_positions):
+            candidate = json_str[:pos + 1]
+            
+            # 先直接尝试解析
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+            
+            # 补全未闭合的花括号后再尝试（截断导致外层闭合括号丢失）
+            opens = candidate.count('{')
+            closes = candidate.count('}')
+            if closes < opens:
+                try:
+                    return json.loads(candidate + '}' * (opens - closes))
+                except json.JSONDecodeError:
+                    continue
+        
+        return None
     
     def _fix_json_string(self, json_str: str) -> str:
         """修复常见的 JSON 格式问题"""
@@ -957,8 +1000,14 @@ class OpenAIAnalyzer:
             trend = '看空'
             advice = '卖出'
         
-        # 截取前500字符作为摘要
-        summary = response_text[:500] if response_text else '无分析结果'
+        # 摘要：如果响应是 JSON/代码块残留（解析失败但确实是结构化输出），
+        # 不倾倒原始 JSON，避免推送出现乱码
+        looks_like_json = response_text.strip().startswith(('{', '[', '```'))
+        if looks_like_json:
+            summary = 'AI 返回格式异常（JSON 解析失败或输出被截断），已记录原始响应，建议查看日志或重试'
+        else:
+            # 纯文本响应，截取前500字符作为摘要
+            summary = response_text[:500] if response_text else '无分析结果'
         
         return AnalysisResult(
             code=code,

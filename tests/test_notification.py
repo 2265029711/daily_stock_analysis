@@ -350,7 +350,7 @@ class TestBarkContent:
         assert '理由' in body
 
     def test_content_contains_sniper_points(self, monkeypatch):
-        """推送内容包含狙击点位"""
+        """推送内容包含狙击点位（提取数字，非截断描述）"""
         monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
         Config.reset_instance()
 
@@ -358,9 +358,31 @@ class TestBarkContent:
             send_notifications([make_full_result()], title='测试')
 
         body = mock_post.call_args.kwargs['json']['body']
-        assert '1300元' in body  # 理想买入点
-        assert '1280元' in body  # 止损
-        assert '1400元' in body  # 目标
+        assert '买 1300' in body  # 理想买入点
+        assert '损 1280' in body  # 止损
+        assert '标 1400' in body  # 目标
+
+    def test_sniper_points_extract_numbers(self, monkeypatch):
+        """点位从 LLM 描述中提取数字（不显示被截断的原始描述）"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        result = make_full_result()
+        result.dashboard['battle_plan']['sniper_points'] = {
+            'ideal_buy': '理想买入点：383.89元附近（MA5附近，乖离率0.47%）',
+            'stop_loss': '止损位：378.00元（跌破MA20支撑）',
+            'take_profit': '目标位：400.00元（整数关口+前高）',
+        }
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([result], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '买 383.89' in body
+        assert '损 378.00' in body
+        assert '标 400.00' in body
+        # 不应包含被截断的半截描述
+        assert '理想买入点：383.89元附近（MA' not in body
 
     def test_content_without_data_still_works(self, monkeypatch):
         """无实时数据时内容正常生成（不报错）"""

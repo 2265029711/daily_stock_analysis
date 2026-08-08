@@ -11,6 +11,7 @@ A股自选股智能分析系统 - 通知层
 """
 
 import logging
+import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -1142,7 +1143,15 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
 
     def truncate(text: str, length: int = 60) -> str:
         text = (text or "").strip()
-        return text[:length] + "..." if len(text) > length else text
+        if len(text) <= length:
+            return text
+        # 优先在句号/感叹号/问号处截断，避免切碎语义
+        cut = text[:length]
+        for sep in ('。', '！', '？', '；'):
+            idx = cut.rfind(sep)
+            if idx > length // 2:
+                return cut[:idx + 1] + "..."
+        return cut + "..."
 
     for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
         emoji = r.get_emoji()
@@ -1219,15 +1228,27 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
         if reason:
             lines.append(f"📌 理由: {truncate(reason, 70)}")
 
-        # ===== 5. 狙击点位 + 检查清单 =====
+        # ===== 5. 狙击点位（提取数字价格，避免截断描述文字） =====
         sniper = battle.get('sniper_points', {}) or {}
+
+        def extract_price(text) -> str:
+            """从 LLM 描述中提取价格数字，如 '理想买入点：383.89元附近' -> 383.89"""
+            if not text:
+                return ''
+            m = re.search(r'(\d+(?:\.\d+)?)', str(text))
+            return m.group(1) if m else ''
+
+        buy_price = extract_price(sniper.get('ideal_buy'))
+        stop_price = extract_price(sniper.get('stop_loss'))
+        target_price = extract_price(sniper.get('take_profit'))
+
         points = []
-        if sniper.get('ideal_buy'):
-            points.append(f"买 {truncate(sniper.get('ideal_buy'), 18)}")
-        if sniper.get('stop_loss'):
-            points.append(f"损 {truncate(sniper.get('stop_loss'), 18)}")
-        if sniper.get('take_profit'):
-            points.append(f"标 {truncate(sniper.get('take_profit'), 18)}")
+        if buy_price:
+            points.append(f"买 {buy_price}")
+        if stop_price:
+            points.append(f"损 {stop_price}")
+        if target_price:
+            points.append(f"标 {target_price}")
         if points:
             lines.append(f"📍 {' | '.join(points)}")
 

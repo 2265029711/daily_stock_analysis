@@ -234,6 +234,37 @@ def test_analyze_text_fallback(monkeypatch):
     assert '看多' in result.analysis_summary or result.sentiment_score == 65
 
 
+def test_analyze_truncated_json_repaired(monkeypatch):
+    """响应被截断（LLM 输出超限）时修复为可解析 JSON"""
+    analyzer = make_analyzer(monkeypatch)
+    # 真实场景：LLM 输出在 ideal_buy 值中途被截断（后续内容 + 外层闭合括号全部丢失）
+    cut_marker = '"ideal_buy": "'
+    idx = VALID_JSON.find(cut_marker)
+    truncated = VALID_JSON[:idx] + '"ideal_buy": "理想买入点：18'
+    analyzer._openai_client.chat.completions.create.return_value = make_completion(truncated)
+    context = {'code': '600519', 'today': {'close': 1820.0}}
+    result = analyzer.analyze(context)
+    # 截断修复后仍能解析出核心字段（缺失字段使用默认值）
+    assert result.success is True
+    assert result.sentiment_score == 75
+    assert result.trend_prediction == '看多'
+    assert result.operation_advice == '买入'
+    assert result.dashboard is not None
+
+
+def test_text_fallback_no_raw_json_dump(monkeypatch):
+    """JSON 解析彻底失败时，摘要不倾倒原始 JSON（避免推送乱码）"""
+    analyzer = make_analyzer(monkeypatch)
+    # 完全损坏的 JSON（开头 { 结尾无闭合）
+    broken = '{"sentiment_score": 45, "trend_prediction": "震荡", "operation_advice": "观望", "analysis_summary": "被截断'
+    analyzer._openai_client.chat.completions.create.return_value = make_completion(broken)
+    context = {'code': '600519', 'today': {'close': 1820.0}}
+    result = analyzer.analyze(context)
+    assert result.success is True
+    assert '{' not in result.analysis_summary
+    assert '格式异常' in result.analysis_summary
+
+
 def test_analyze_without_key(monkeypatch):
     """无 API Key 时 analyze() 返回默认失败结果"""
     monkeypatch.setenv('OPENAI_API_KEY', '')
