@@ -440,6 +440,95 @@ class AkshareFetcher(BaseFetcher):
             
         except Exception as e:
             logger.error(f"[API错误] 获取 {stock_code} 实时行情失败: {e}")
+            # AkShare（东财）不可用时，使用腾讯行情兜底（免费、无需 Token）
+            logger.info("[API错误] 尝试腾讯行情兜底...")
+            return self._get_realtime_quote_from_tencent(stock_code)
+    
+    def _get_realtime_quote_from_tencent(self, stock_code: str) -> Optional[RealtimeQuote]:
+        """
+        腾讯行情兜底（免费、无需 Token、稳定）
+        
+        当 AkShare 的东财接口不可用（反爬/断连）时使用。
+        数据来源：https://qt.gtimg.cn/q=sh600519
+        
+        字段说明（按 ~ 分割）：
+        [1]=名称 [3]=现价 [4]=昨收 [5]=今开 [31]=涨跌额 [32]=涨跌幅
+        [33]=最高 [34]=最低 [36]=成交量(手) [37]=成交额(万)
+        [38]=换手率 [39]=PE(TTM) [44]=流通市值(亿) [45]=总市值(亿)
+        [46]=PB [49]=量比
+        
+        Args:
+            stock_code: 股票代码，如 600519
+            
+        Returns:
+            RealtimeQuote 对象，失败返回 None
+        """
+        try:
+            import requests as _requests
+            
+            # 转换代码格式: 600519 -> sh600519, 000001 -> sz000001
+            if stock_code.startswith('6'):
+                symbol = f"sh{stock_code}"
+            elif stock_code.startswith(('0', '3')):
+                symbol = f"sz{stock_code}"
+            else:
+                logger.warning(f"[腾讯行情] 不支持的代码格式: {stock_code}")
+                return None
+            
+            resp = _requests.get(
+                f"https://qt.gtimg.cn/q={symbol}",
+                timeout=10,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+                },
+            )
+            resp.encoding = 'gbk'
+            
+            if resp.status_code != 200 or '="' not in resp.text:
+                logger.warning(f"[腾讯行情] 请求失败: status={resp.status_code}")
+                return None
+            
+            line = resp.text.split('"')[1]
+            fields = line.split('~')
+            if len(fields) < 50:
+                logger.warning(f"[腾讯行情] 返回数据格式异常: {line[:100]}")
+                return None
+            
+            def safe_float(idx: int, default: float = 0.0) -> float:
+                try:
+                    return float(fields[idx])
+                except (ValueError, IndexError):
+                    return default
+            
+            quote = RealtimeQuote(
+                code=stock_code,
+                name=fields[1] or '',
+                price=safe_float(3),
+                change_pct=safe_float(32),
+                change_amount=safe_float(31),
+                volume_ratio=safe_float(49),
+                turnover_rate=safe_float(38),
+                amplitude=0.0,
+                pe_ratio=safe_float(39),
+                pb_ratio=safe_float(46),
+                total_mv=safe_float(45) * 1e8,  # 亿 -> 元
+                circ_mv=safe_float(44) * 1e8,   # 亿 -> 元
+                change_60d=0.0,  # 腾讯不提供60日涨跌幅
+            )
+            
+            # 振幅 = (最高 - 最低) / 昨收 × 100
+            high, low, prev_close = safe_float(33), safe_float(34), safe_float(4)
+            if prev_close > 0:
+                quote.amplitude = (high - low) / prev_close * 100
+            
+            logger.info(f"[腾讯行情] {stock_code} {quote.name}: 价格={quote.price}, "
+                       f"涨跌={quote.change_pct}%, 量比={quote.volume_ratio}, "
+                       f"换手率={quote.turnover_rate}%, PE={quote.pe_ratio}, PB={quote.pb_ratio}")
+            return quote
+            
+        except Exception as e:
+            logger.warning(f"[腾讯行情] 获取 {stock_code} 失败: {e}")
             return None
     
     def get_chip_distribution(self, stock_code: str) -> Optional[ChipDistribution]:
