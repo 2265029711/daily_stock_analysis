@@ -11,7 +11,6 @@ A股自选股智能分析系统 - 通知层
 """
 
 import logging
-import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -1114,7 +1113,11 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
     2. 📈 技术面（均线排列/乖离率/趋势评分）
     3. 📰 情报摘要（新闻/风险/利好）
     4. 💡 LLM 结论 + 操作理由（最后，带理由）
-    5. 📍 狙击点位 + 检查清单
+    5. 📍 狙击点位（完整描述）
+
+    说明：
+    - 不做逐行截断，输出完整内容（Bark App 可看全文，通知栏只显示开头）
+    - 仅当总长度超过 Bark 服务器限制（约 3000 字符）时，按股票边界整体截断
     """
     report_date = datetime.now().strftime('%Y-%m-%d')
 
@@ -1140,18 +1143,6 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
             return "N/A"
         except (TypeError, ValueError):
             return "N/A"
-
-    def truncate(text: str, length: int = 60) -> str:
-        text = (text or "").strip()
-        if len(text) <= length:
-            return text
-        # 优先在句号/感叹号/问号处截断，避免切碎语义
-        cut = text[:length]
-        for sep in ('。', '！', '？', '；'):
-            idx = cut.rfind(sep)
-            if idx > length // 2:
-                return cut[:idx + 1] + "..."
-        return cut + "..."
 
     for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
         emoji = r.get_emoji()
@@ -1203,64 +1194,64 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
             if tech_parts:
                 lines.append(f"📈 技术面: {' | '.join(tech_parts)}")
 
-        # ===== 3. 情报摘要（新闻/风险/利好） =====
+        # ===== 3. 情报摘要（新闻/风险/利好，完整输出） =====
         intel_lines = []
         if intel.get('latest_news'):
-            intel_lines.append(f"📰 {truncate(intel.get('latest_news'), 70)}")
+            intel_lines.append(f"📰 {intel.get('latest_news')}")
         risk_alerts = intel.get('risk_alerts', []) or []
         if risk_alerts:
-            intel_lines.append(f"🚨 风险: {truncate(risk_alerts[0], 50)}")
+            intel_lines.append(f"🚨 风险: {risk_alerts[0]}")
         catalysts = intel.get('positive_catalysts', []) or []
         if catalysts:
-            intel_lines.append(f"✨ 利好: {truncate(catalysts[0], 50)}")
+            intel_lines.append(f"✨ 利好: {catalysts[0]}")
         if intel_lines:
             lines.extend(intel_lines)
 
-        # ===== 4. LLM 结论（最后，带理由） =====
+        # ===== 4. LLM 结论（最后，带理由，完整输出） =====
         one_sentence = core.get('one_sentence', r.analysis_summary)
         if one_sentence:
-            lines.append(f"💡 结论: {truncate(one_sentence, 70)}")
+            lines.append(f"💡 结论: {one_sentence}")
 
         reason = r.buy_reason
         if not reason:
             pos_advice = core.get('position_advice', {}) or {}
             reason = pos_advice.get('no_position') or pos_advice.get('has_position') or ""
         if reason:
-            lines.append(f"📌 理由: {truncate(reason, 70)}")
+            lines.append(f"📌 理由: {reason}")
 
-        # ===== 5. 狙击点位（提取数字价格，避免截断描述文字） =====
+        # ===== 5. 狙击点位（完整描述，不截断） =====
         sniper = battle.get('sniper_points', {}) or {}
-
-        def extract_price(text) -> str:
-            """从 LLM 描述中提取价格数字，如 '理想买入点：383.89元附近' -> 383.89"""
-            if not text:
-                return ''
-            m = re.search(r'(\d+(?:\.\d+)?)', str(text))
-            return m.group(1) if m else ''
-
-        buy_price = extract_price(sniper.get('ideal_buy'))
-        stop_price = extract_price(sniper.get('stop_loss'))
-        target_price = extract_price(sniper.get('take_profit'))
-
         points = []
-        if buy_price:
-            points.append(f"买 {buy_price}")
-        if stop_price:
-            points.append(f"损 {stop_price}")
-        if target_price:
-            points.append(f"标 {target_price}")
+        for label, key in (("买", "ideal_buy"), ("损", "stop_loss"), ("标", "take_profit")):
+            text = (sniper.get(key) or "").strip()
+            if text:
+                points.append(f"{label}: {text}")
         if points:
-            lines.append(f"📍 {' | '.join(points)}")
+            lines.append(f"📍 {'；'.join(points)}")
 
         if r.risk_warning:
-            lines.append(f"⚠️ 提示: {truncate(r.risk_warning, 60)}")
+            lines.append(f"⚠️ 提示: {r.risk_warning}")
 
         lines.append("---")
         lines.append("")
 
     lines.append(f"*生成时间: {datetime.now().strftime('%H:%M')} | AI生成仅供参考*")
 
-    return "\n".join(lines)
+    content = "\n".join(lines)
+
+    # 总长度兜底（Bark 服务器限制约 3000 字符）
+    MAX_BARK_LENGTH = 2800
+    if len(content) > MAX_BARK_LENGTH:
+        logger.warning(f"Bark 内容超长({len(content)}字符)，按股票边界截断")
+        cut = content[:MAX_BARK_LENGTH]
+        # 在最后一个股票分隔线处截断，避免切碎内容
+        boundary = cut.rfind("\n---\n")
+        if boundary > 0:
+            content = cut[:boundary] + "\n...(内容过长，剩余股票已省略)"
+        else:
+            content = cut + "\n...(内容过长，已截断)"
+
+    return content
 
 
 def send_daily_report(results: List[AnalysisResult]) -> bool:
