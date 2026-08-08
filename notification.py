@@ -7,7 +7,7 @@ A股自选股智能分析系统 - 通知层
 职责：
 1. 汇总分析结果生成日报
 2. 支持 Markdown 格式输出
-3. 推送到企业微信 Webhook
+3. 多渠道独立推送（企业微信 / Bark），互不影响
 """
 
 import logging
@@ -20,6 +20,86 @@ from config import get_config
 from analyzer import AnalysisResult
 
 logger = logging.getLogger(__name__)
+
+
+class BarkNotifier:
+    """
+    Bark 推送服务（iOS 通知）
+
+    支持官方服务器（https://api.day.app）或自建服务器
+    通过简单 HTTP POST 推送通知
+    """
+
+    def __init__(
+        self,
+        device_key: Optional[str] = None,
+        server_url: Optional[str] = None,
+        group: Optional[str] = None,
+    ):
+        """
+        初始化 Bark 推送服务
+
+        Args:
+            device_key: Bark 设备 Key（可选，默认从配置读取）
+            server_url: Bark 服务器地址（可选，默认 https://api.day.app）
+            group: 通知分组（可选，默认 股票分析）
+        """
+        config = get_config()
+        self._device_key = device_key or config.bark_device_key
+        self._server_url = (server_url or config.bark_server_url).rstrip('/')
+        self._group = group or config.bark_group
+
+        if not self._device_key:
+            logger.warning("Bark 设备 Key 未配置，将不发送 Bark 推送")
+
+    def is_available(self) -> bool:
+        """检查 Bark 服务是否可用"""
+        return bool(self._device_key)
+
+    def send_to_bark(self, title: str, content: str, group: Optional[str] = None) -> bool:
+        """
+        推送消息到 Bark
+
+        官方服务器地址: https://api.day.app/{device_key}
+        自建服务器地址: {server_url}/{device_key}
+
+        Args:
+            title: 通知标题
+            content: 通知内容
+            group: 通知分组（可选，默认使用配置的分组）
+
+        Returns:
+            是否发送成功
+        """
+        if not self.is_available():
+            logger.warning("Bark 设备 Key 未配置，跳过 Bark 推送")
+            return False
+
+        url = f"{self._server_url}/{self._device_key}"
+
+        payload = {
+            "title": title,
+            "body": content,
+            "group": group or self._group,
+        }
+
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('code') == 200:
+                    logger.info("Bark 消息发送成功")
+                    return True
+                else:
+                    logger.error(f"Bark 返回错误: {result}")
+                    return False
+            else:
+                logger.error(f"Bark 请求失败: {response.status_code}")
+                return False
+        except Exception as e:
+            logger.error(f"Bark 发送失败: {e}")
+            return False
 
 
 class NotificationService:
@@ -931,6 +1011,122 @@ class NotificationBuilder:
 def get_notification_service() -> NotificationService:
     """获取通知服务实例"""
     return NotificationService()
+
+
+def send_text_notifications(content: str, title: str = "") -> Dict[str, bool]:
+    """
+    多渠道统一分发文本通知（企业微信 / Bark），互不影响
+
+    Args:
+        content: 文本内容（如大盘复盘报告）
+        title: 通知标题（Bark 使用）
+
+    Returns:
+        {渠道名: 是否发送成功} 字典
+    """
+    config = get_config()
+    status: Dict[str, bool] = {}
+
+    # 渠道 1: 企业微信
+    if config.wechat_webhook_url:
+        try:
+            service = NotificationService()
+            status['wechat'] = service.send_to_wechat(content)
+        except Exception as e:
+            logger.error(f"企业微信推送异常（不影响其他渠道）: {e}")
+            status['wechat'] = False
+    else:
+        logger.info("企业微信未配置，跳过该渠道")
+
+    # 渠道 2: Bark
+    if config.bark_device_key:
+        try:
+            bark = BarkNotifier()
+            status['bark'] = bark.send_to_bark(title or "📊 通知", content)
+        except Exception as e:
+            logger.error(f"Bark 推送异常（不影响其他渠道）: {e}")
+            status['bark'] = False
+    else:
+        logger.info("Bark 未配置，跳过该渠道")
+
+    if not status:
+        logger.warning("未配置任何通知渠道（企业微信 / Bark），跳过推送")
+
+    return status
+
+
+def send_notifications(results: List[AnalysisResult], title: str = "") -> Dict[str, bool]:
+    """
+    多渠道统一分发通知（企业微信 / Bark）
+
+    渠道独立原则：
+    - 各渠道根据自身配置独立判断是否启用
+    - 任一渠道失败/未配置，不影响其他渠道
+    - 只启用已配置的渠道，无硬编码依赖
+
+    Args:
+        results: 分析结果列表
+        title: 通知标题（Bark 使用）
+
+    Returns:
+        {渠道名: 是否发送成功} 字典
+    """
+    config = get_config()
+    status: Dict[str, bool] = {}
+
+    # 渠道 1: 企业微信
+    if config.wechat_webhook_url:
+        try:
+            service = NotificationService()
+            content = service.generate_wechat_dashboard(results)
+            status['wechat'] = service.send_to_wechat(content)
+        except Exception as e:
+            logger.error(f"企业微信推送异常（不影响其他渠道）: {e}")
+            status['wechat'] = False
+    else:
+        logger.info("企业微信未配置，跳过该渠道")
+
+    # 渠道 2: Bark
+    if config.bark_device_key:
+        try:
+            bark = BarkNotifier()
+            content = _generate_bark_content(results)
+            status['bark'] = bark.send_to_bark(title or "🎯 每日决策仪表盘", content)
+        except Exception as e:
+            logger.error(f"Bark 推送异常（不影响其他渠道）: {e}")
+            status['bark'] = False
+    else:
+        logger.info("Bark 未配置，跳过该渠道")
+
+    if not status:
+        logger.warning("未配置任何通知渠道（企业微信 / Bark），跳过推送")
+
+    return status
+
+
+def _generate_bark_content(results: List[AnalysisResult]) -> str:
+    """
+    生成 Bark 推送内容（精简版）
+
+    Bark 通知栏仅显示前 ~200 字符，内容尽量精简
+    """
+    report_date = datetime.now().strftime('%Y-%m-%d')
+
+    # 统计
+    buy_count = sum(1 for r in results if r.operation_advice in ['买入', '加仓', '强烈买入'])
+    sell_count = sum(1 for r in results if r.operation_advice in ['卖出', '减仓', '强烈卖出'])
+    hold_count = sum(1 for r in results if r.operation_advice in ['持有', '观望'])
+
+    lines = [
+        f"{report_date} | {len(results)}只 | 🟢{buy_count} 🟡{hold_count} 🔴{sell_count}",
+        "",
+    ]
+
+    for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
+        emoji = r.get_emoji()
+        lines.append(f"{emoji} {r.name}({r.code}) {r.operation_advice} {r.sentiment_score}分")
+
+    return "\n".join(lines)
 
 
 def send_daily_report(results: List[AnalysisResult]) -> bool:

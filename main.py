@@ -45,7 +45,7 @@ from storage import get_db, DatabaseManager
 from data_provider import DataFetcherManager
 from data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
 from analyzer import OpenAIAnalyzer, AnalysisResult, STOCK_NAME_MAP
-from notification import NotificationService, send_daily_report
+from notification import NotificationService, send_daily_report, send_notifications, send_text_notifications
 from search_service import SearchService, SearchResponse
 from stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
 from market_analyzer import MarketAnalyzer
@@ -557,10 +557,10 @@ class StockAnalysisPipeline:
     
     def _send_notifications(self, results: List[AnalysisResult]) -> None:
         """
-        发送分析结果通知
-        
-        生成决策仪表盘格式的报告
-        
+        发送分析结果通知（多渠道独立分发）
+
+        企业微信 / Bark 各自独立，互不影响
+
         Args:
             results: 分析结果列表
         """
@@ -574,20 +574,14 @@ class StockAnalysisPipeline:
             filepath = self.notifier.save_report_to_file(report)
             logger.info(f"决策仪表盘日报已保存: {filepath}")
             
-            # 推送到企业微信（使用精简版决策仪表盘）
-            if self.notifier.is_available():
-                # 生成精简版决策仪表盘用于微信推送
-                wechat_dashboard = self.notifier.generate_wechat_dashboard(results)
-                logger.info(f"微信决策仪表盘长度: {len(wechat_dashboard)} 字符")
-                logger.debug(f"微信推送内容:\n{wechat_dashboard}")
-                
-                success = self.notifier.send_to_wechat(wechat_dashboard)
-                if success:
-                    logger.info("决策仪表盘推送成功")
+            # 多渠道独立推送（企业微信 / Bark）
+            status = send_notifications(results, title=f"🎯 {datetime.now().strftime('%Y-%m-%d')} 决策仪表盘")
+            
+            for channel, ok in status.items():
+                if ok:
+                    logger.info(f"{channel} 推送成功")
                 else:
-                    logger.warning("决策仪表盘推送失败")
-            else:
-                logger.info("企业微信未配置，跳过推送")
+                    logger.warning(f"{channel} 推送失败")
                 
         except Exception as e:
             logger.error(f"发送通知失败: {e}")
@@ -686,18 +680,21 @@ def run_market_review(notifier: NotificationService, analyzer=None, search_servi
         review_report = market_analyzer.run_daily_review()
         
         if review_report:
-            # 推送到微信
-            if notifier.is_available():
-                # 添加标题
-                wechat_report = f"## 🎯 大盘复盘\n\n{review_report}"
-                if len(wechat_report) > 3800:
-                    wechat_report = wechat_report[:3800] + "\n...(已截断)"
-                
-                success = notifier.send_to_wechat(wechat_report)
-                if success:
-                    logger.info("大盘复盘推送成功")
+            # 多渠道独立推送（企业微信 / Bark）
+            report_content = f"## 🎯 大盘复盘\n\n{review_report}"
+            if len(report_content) > 3800:
+                report_content = report_content[:3800] + "\n...(已截断)"
+            
+            status = send_text_notifications(
+                report_content,
+                title=f"🎯 {datetime.now().strftime('%Y-%m-%d')} 大盘复盘"
+            )
+            
+            for channel, ok in status.items():
+                if ok:
+                    logger.info(f"大盘复盘 {channel} 推送成功")
                 else:
-                    logger.warning("大盘复盘推送失败")
+                    logger.warning(f"大盘复盘 {channel} 推送失败")
             
             return review_report
         
