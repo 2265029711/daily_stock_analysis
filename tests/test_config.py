@@ -16,7 +16,9 @@ def reset_config(monkeypatch):
     """每个测试前重置配置单例，并用空值屏蔽 .env 中的真实配置"""
     for env in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
                 'BARK_DEVICE_KEY', 'BARK_SERVER_URL', 'BARK_GROUP',
-                'WECHAT_WEBHOOK_URL', 'STOCK_LIST'):
+                'WECHAT_WEBHOOK_URL', 'STOCK_LIST', 'TAVILY_API_KEYS',
+                'TAVILY_API_KEY_1', 'TAVILY_API_KEY_2', 'TAVILY_API_KEY_3',
+                'SERPAPI_KEYS'):
         monkeypatch.setenv(env, '')
     # 数值型配置设为文档默认值（空串会导致 float/int 解析报错）
     monkeypatch.setenv('OPENAI_REQUEST_DELAY', '2.0')
@@ -128,3 +130,28 @@ def test_validate_bark_channel_ok(monkeypatch):
     config = get_config()
     warnings = config.validate()
     assert not any('通知渠道' in w for w in warnings)
+
+
+def test_tavily_keys_comma_separated(monkeypatch):
+    """逗号分隔格式兼容"""
+    monkeypatch.setenv('TAVILY_API_KEYS', 'tvly-key1,tvly-key2')
+    config = get_config()
+    assert config.tavily_api_keys == ['tvly-key1', 'tvly-key2']
+
+
+def test_tavily_keys_one_per_line(monkeypatch):
+    """一个 key 一行的格式（TAVILY_API_KEY_N 聚合）"""
+    monkeypatch.setenv('TAVILY_API_KEY_1', 'tvly-key-a')
+    monkeypatch.setenv('TAVILY_API_KEY_2', 'tvly-key-b')
+    monkeypatch.setenv('TAVILY_API_KEY_3', 'tvly-key-c')
+    config = get_config()
+    assert config.tavily_api_keys == ['tvly-key-a', 'tvly-key-b', 'tvly-key-c']
+
+
+def test_tavily_keys_mixed_formats(monkeypatch):
+    """两种格式混合时合并去重"""
+    monkeypatch.setenv('TAVILY_API_KEYS', 'tvly-key1,tvly-key2')
+    monkeypatch.setenv('TAVILY_API_KEY_2', 'tvly-key2')
+    monkeypatch.setenv('TAVILY_API_KEY_3', 'tvly-key3')
+    config = get_config()
+    assert config.tavily_api_keys == ['tvly-key1', 'tvly-key2', 'tvly-key3']

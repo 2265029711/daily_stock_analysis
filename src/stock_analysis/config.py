@@ -128,9 +128,19 @@ class Config:
         if not stock_list:
             stock_list = ['600519', '000001', '300750']
         
-        # 解析搜索引擎 API Keys（支持多个 key，逗号分隔）
-        tavily_keys_str = os.getenv('TAVILY_API_KEYS', '')
-        tavily_api_keys = [k.strip() for k in tavily_keys_str.split(',') if k.strip()]
+        # 解析搜索引擎 API Keys
+        # 方式1（兼容）：TAVILY_API_KEYS=tvly-key1,tvly-key2（逗号分隔）
+        # 方式2（推荐）：一个 key 一行，TAVILY_API_KEY_1=xxx / TAVILY_API_KEY_2=yyy
+        tavily_api_keys = [
+            k.strip()
+            for k in os.getenv('TAVILY_API_KEYS', '').split(',')
+            if k.strip()
+        ]
+        for env_name, value in os.environ.items():
+            if env_name.startswith('TAVILY_API_KEY_') and env_name != 'TAVILY_API_KEYS':
+                key = value.strip()
+                if key and key not in tavily_api_keys:
+                    tavily_api_keys.append(key)
         
         serpapi_keys_str = os.getenv('SERPAPI_KEYS', '')
         serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]

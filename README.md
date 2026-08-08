@@ -276,10 +276,16 @@ users:
 
 ### 🔑 Tavily 多 Key 轮换
 
-`TAVILY_API_KEYS` 支持多个 Key（逗号分隔），自动负载均衡：
+`TAVILY_API_KEYS` 支持多个 Key，**推荐一个 key 一行**（也兼容逗号分隔）：
 ```bash
-TAVILY_API_KEYS=tvly-key1,tvly-key2,tvly-key3
+# 方式一（推荐）：一个 key 一行，自动轮询
+TAVILY_API_KEY_1=tvly-key1
+TAVILY_API_KEY_2=tvly-key2
+
+# 方式二（兼容）：逗号分隔单行
+# TAVILY_API_KEYS=tvly-key1,tvly-key2
 ```
+- 多个 Key **自动轮询**使用（负载均衡）
 - 某个 Key **配额用尽**（429/402/rate limit）时自动标记冷却 30 天并切换下一个 Key（状态持久化在 `data/search_keys_state.json`，重启不丢失）
 - 全部 Key 耗尽时跳过搜索并告警，不影响分析主流程
 
