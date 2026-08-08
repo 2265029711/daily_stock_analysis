@@ -44,7 +44,7 @@ from config import get_config, Config
 from storage import get_db, DatabaseManager
 from data_provider import DataFetcherManager
 from data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
-from analyzer import GeminiAnalyzer, AnalysisResult, STOCK_NAME_MAP
+from analyzer import OpenAIAnalyzer, AnalysisResult, STOCK_NAME_MAP
 from notification import NotificationService, send_daily_report
 from search_service import SearchService, SearchResponse
 from stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
@@ -150,7 +150,7 @@ class StockAnalysisPipeline:
         self.fetcher_manager = DataFetcherManager()
         self.akshare_fetcher = AkshareFetcher()  # 用于获取增强数据（量比、筹码等）
         self.trend_analyzer = StockTrendAnalyzer()  # 趋势分析器
-        self.analyzer = GeminiAnalyzer()
+        self.analyzer = OpenAIAnalyzer()
         self.notifier = NotificationService()
         
         # 初始化搜索服务
@@ -803,8 +803,8 @@ def main() -> int:
                     serpapi_keys=config.serpapi_keys
                 )
             
-            if config.gemini_api_key:
-                analyzer = GeminiAnalyzer(api_key=config.gemini_api_key)
+            if config.openai_api_key:
+                analyzer = OpenAIAnalyzer(api_key=config.openai_api_key)
             
             run_market_review(notifier, analyzer, search_service)
             return 0

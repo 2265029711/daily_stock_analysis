@@ -34,20 +34,15 @@ class Config:
     # === 数据源 API Token ===
     tushare_token: Optional[str] = None
     
-    # === AI 分析配置 ===
-    gemini_api_key: Optional[str] = None
-    gemini_model: str = "gemini-3-flash-preview"  # 主模型
-    gemini_model_fallback: str = "gemini-2.5-flash"  # 备选模型
-    
-    # Gemini API 请求配置（防止 429 限流）
-    gemini_request_delay: float = 2.0  # 请求间隔（秒）
-    gemini_max_retries: int = 5  # 最大重试次数
-    gemini_retry_delay: float = 5.0  # 重试基础延时（秒）
-    
-    # OpenAI 兼容 API（备选，当 Gemini 不可用时使用）
+    # === AI 分析配置（OpenAI 兼容格式） ===
     openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1
+    openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1 或 https://api.deepseek.com/v1
     openai_model: str = "gpt-4o-mini"  # OpenAI 兼容模型名称
+    
+    # OpenAI API 请求配置（防止 429 限流）
+    openai_request_delay: float = 2.0  # 请求间隔（秒）
+    openai_max_retries: int = 5  # 最大重试次数
+    openai_retry_delay: float = 5.0  # 重试基础延时（秒）
     
     # === 搜索引擎配置（支持多 Key 负载均衡）===
     tavily_api_keys: List[str] = field(default_factory=list)  # Tavily API Keys
@@ -55,6 +50,11 @@ class Config:
     
     # === 通知配置 ===
     wechat_webhook_url: Optional[str] = None
+    
+    # Bark 推送配置（iOS 通知，可选）
+    bark_device_key: Optional[str] = None  # Bark 设备 Key（Bark App 中获取）
+    bark_server_url: str = "https://api.day.app"  # Bark 服务器地址（自建服务器可改）
+    bark_group: str = "股票分析"  # 通知分组
     
     # === 数据库配置 ===
     database_path: str = "./data/stock_analysis.db"
@@ -138,18 +138,18 @@ class Config:
         return cls(
             stock_list=stock_list,
             tushare_token=os.getenv('TUSHARE_TOKEN'),
-            gemini_api_key=os.getenv('GEMINI_API_KEY'),
-            gemini_model=os.getenv('GEMINI_MODEL', 'gemini-3-flash-preview'),
-            gemini_model_fallback=os.getenv('GEMINI_MODEL_FALLBACK', 'gemini-2.5-flash'),
-            gemini_request_delay=float(os.getenv('GEMINI_REQUEST_DELAY', '2.0')),
-            gemini_max_retries=int(os.getenv('GEMINI_MAX_RETRIES', '5')),
-            gemini_retry_delay=float(os.getenv('GEMINI_RETRY_DELAY', '5.0')),
             openai_api_key=os.getenv('OPENAI_API_KEY'),
             openai_base_url=os.getenv('OPENAI_BASE_URL'),
             openai_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+            openai_request_delay=float(os.getenv('OPENAI_REQUEST_DELAY', '2.0')),
+            openai_max_retries=int(os.getenv('OPENAI_MAX_RETRIES', '5')),
+            openai_retry_delay=float(os.getenv('OPENAI_RETRY_DELAY', '5.0')),
             tavily_api_keys=tavily_api_keys,
             serpapi_keys=serpapi_keys,
             wechat_webhook_url=os.getenv('WECHAT_WEBHOOK_URL'),
+            bark_device_key=os.getenv('BARK_DEVICE_KEY'),
+            bark_server_url=os.getenv('BARK_SERVER_URL', 'https://api.day.app'),
+            bark_group=os.getenv('BARK_GROUP', '股票分析'),
             database_path=os.getenv('DATABASE_PATH', './data/stock_analysis.db'),
             log_dir=os.getenv('LOG_DIR', './logs'),
             log_level=os.getenv('LOG_LEVEL', 'INFO'),
@@ -180,16 +180,14 @@ class Config:
         if not self.tushare_token:
             warnings.append("提示：未配置 Tushare Token，将使用其他数据源")
         
-        if not self.gemini_api_key and not self.openai_api_key:
-            warnings.append("警告：未配置 Gemini 或 OpenAI API Key，AI 分析功能将不可用")
-        elif not self.gemini_api_key:
-            warnings.append("提示：未配置 Gemini API Key，将使用 OpenAI 兼容 API")
+        if not self.openai_api_key:
+            warnings.append("警告：未配置 OpenAI API Key，AI 分析功能将不可用")
         
         if not self.tavily_api_keys and not self.serpapi_keys:
             warnings.append("提示：未配置搜索引擎 API Key (Tavily/SerpAPI)，新闻搜索功能将不可用")
         
-        if not self.wechat_webhook_url:
-            warnings.append("提示：未配置企业微信 Webhook，将不发送推送通知")
+        if not self.wechat_webhook_url and not self.bark_device_key:
+            warnings.append("提示：未配置通知渠道（企业微信 Webhook / Bark），将不发送推送通知")
         
         return warnings
     

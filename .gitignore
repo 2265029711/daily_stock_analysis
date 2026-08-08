@@ -6,6 +6,9 @@
 # 测试文件（可能包含敏感配置）
 test_*.py
 !test_env.py
+!tests/
+!tests/*.py
+!tests/*.json
 
 # Python
 __pycache__/

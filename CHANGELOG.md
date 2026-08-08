@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+### 变更
+- 🔄 AI 供应商改为 OpenAI 兼容格式独占
+  - 移除 Gemini 支持（配置、依赖、workflow、文档全量清理）
+  - 仅保留 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` 配置
+  - 重命名分析器为 `OpenAIAnalyzer`，简化为单一重试链路
+- 🔔 新增 Bark（iOS）推送，通知渠道独立解耦
+  - 企业微信 / Bark 各自独立配置、独立发送、互不影响
+  - 新增 `BARK_DEVICE_KEY` / `BARK_SERVER_URL` / `BARK_GROUP` 配置
+- ✅ 新增单元测试（pytest）：`tests/test_config.py`、`tests/test_analyzer.py`、`tests/test_notification.py`
+
 ### 计划中
 - 钉钉机器人支持
 - 飞书机器人支持

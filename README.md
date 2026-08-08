@@ -5,7 +5,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 
-> 🤖 基于 AI 大模型的 A 股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/钉钉/飞书
+> 🤖 基于 AI 大模型的 A 股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信 / Bark（iOS）
 
 ![运行效果演示](./sources/2026-01-10_155341_daily_analysis.gif)
 
@@ -15,17 +15,16 @@
 - **AI 决策仪表盘** - 一句话核心结论 + 精确买卖点位 + 检查清单
 - **多维度分析** - 技术面 + 筹码分布 + 舆情情报 + 实时行情
 - **大盘复盘** - 每日市场概览、板块涨跌、北向资金
-- **定时推送** - 支持企业微信机器人自动推送
+- **定时推送** - 支持企业微信机器人 / Bark 自动推送
 - **零成本部署** - GitHub Actions 免费运行，无需服务器
-- **💰 白嫖 Gemini API** - Google AI Studio 提供免费额度，个人使用完全够用
-- **🔄 多模型支持** - 支持 OpenAI 兼容 API（DeepSeek、通义千问等）作为备选
+- **🔗 OpenAI 兼容 API** - 支持 OpenAI / DeepSeek / 通义千问 / Moonshot 等，一键切换模型
+- **🔄 多模型支持** - 任意 OpenAI 格式 API 均可接入（DeepSeek、通义千问等）
 
 ### 📊 数据来源
 - **行情数据**: AkShare（免费）、Tushare、Baostock、YFinance
 - **新闻搜索**: Tavily、SerpAPI
 - **AI 分析**: 
-  - 主力：Google Gemini（gemini-3-flash-preview）—— [免费获取](https://aistudio.google.com/)
-  - 备选：应大家要求，也支持了OpenAI 兼容 API（DeepSeek、通义千问、Moonshot 等）
+  - OpenAI 兼容 API（OpenAI / DeepSeek / 通义千问 / Moonshot 等），格式统一、切换只需改配置
 
 ### 🛡️ 交易理念内置
 - ❌ **严禁追高** - 乖离率 > 5% 自动标记「危险」
@@ -49,17 +48,17 @@
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) 获取 | ✅* |
-| `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | ✅ |
+| `OPENAI_API_KEY` | OpenAI 兼容 API Key（OpenAI/DeepSeek/通义千问等） | ✅ |
+| `OPENAI_BASE_URL` | OpenAI 兼容 API 地址（如 `https://api.deepseek.com/v1`） | 可选 |
+| `OPENAI_MODEL` | OpenAI 兼容模型名称（默认 `gpt-4o-mini`） | 可选 |
+| `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | 二选一* |
+| `BARK_DEVICE_KEY` | Bark 设备 Key（iOS 推送） | 二选一* |
 | `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) Key | 可选 |
 | `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/) Token | 可选 |
-| `OPENAI_API_KEY` | OpenAI 兼容 API Key（备选） | 可选 |
-| `OPENAI_BASE_URL` | OpenAI 兼容 API 地址 | 可选 |
-| `OPENAI_MODEL` | OpenAI 兼容模型名称 | 可选 |
 
-> *注：`GEMINI_API_KEY` 和 `OPENAI_API_KEY` 至少配置一个，系统优先使用 Gemini
+> *注：`WECHAT_WEBHOOK_URL` 和 `BARK_DEVICE_KEY` 至少配置一个（推送渠道互相独立，可同时配置）
 
 #### 3. 启用 Actions
 
@@ -150,18 +149,22 @@ docker-compose logs -f
 
 ```bash
 # === 必填 ===
-GEMINI_API_KEY=your_gemini_key          # Gemini AI
-WECHAT_WEBHOOK_URL=https://qyapi...     # 企业微信机器人
-STOCK_LIST=600519,300750,002594         # 自选股列表
+OPENAI_API_KEY=sk-xxxxxxxxxxxx     # OpenAI 兼容 API Key
+STOCK_LIST=600519,300750,002594    # 自选股列表
+
+# === 通知（至少配置一个渠道）===
+WECHAT_WEBHOOK_URL=                # 企业微信机器人（可选）
+BARK_DEVICE_KEY=                   # Bark 设备 Key，iOS 推送（可选）
 
 # === 推荐 ===
-TAVILY_API_KEYS=your_tavily_key         # 新闻搜索
-GEMINI_MODEL=gemini-3-flash-preview     # 主模型
-GEMINI_MODEL_FALLBACK=gemini-2.5-flash  # 备选模型
+TAVILY_API_KEYS=your_tavily_key    # 新闻搜索
+OPENAI_MODEL=gpt-4o-mini           # 模型名称
+OPENAI_BASE_URL=                   # API 地址（如 https://api.deepseek.com/v1）
 
 # === 可选 ===
-TUSHARE_TOKEN=your_token                # Tushare数据源
-SERPAPI_API_KEYS=your_serpapi_key       # 备用搜索
+TUSHARE_TOKEN=your_token           # Tushare数据源
+SERPAPI_API_KEYS=your_serpapi_key  # 备用搜索
+BARK_SERVER_URL=https://api.day.app  # Bark 服务器（自建可改）
 ```
 
 ### 定时配置（GitHub Actions）
@@ -185,7 +188,7 @@ schedule:
 ```
 daily_stock_analysis/
 ├── main.py              # 主程序入口
-├── analyzer.py          # AI 分析器（Gemini）
+├── analyzer.py          # AI 分析器（OpenAI 兼容）
 ├── market_analyzer.py   # 大盘复盘分析
 ├── search_service.py    # 新闻搜索服务
 ├── notification.py      # 消息推送
@@ -208,21 +211,18 @@ daily_stock_analysis/
 
 ### 🔔 通知渠道扩展
 - [x] 企业微信机器人
+- [x] Bark（iOS 推送）
 - [ ] 钉钉机器人
 - [ ] 飞书机器人
 - [ ] Telegram Bot
 - [ ] Discord Webhook
 - [ ] Slack Webhook
 - [ ] 邮件通知
-- [ ] iOS/Android 推送（Bark/Pushover）
+- [ ] Pushover
 
 ### 🤖 AI 模型支持
-- [x] Google Gemini
-- [ ] OpenAI GPT-4
+- [x] OpenAI 兼容 API（OpenAI / DeepSeek / 通义千问 / Moonshot / 智谱GLM 等，只需改 Base URL 和模型名）
 - [ ] Claude
-- [ ] 通义千问
-- [ ] 文心一言
-- [ ] DeepSeek
 - [ ] 本地模型（Ollama）
 
 ### 📊 数据源扩展

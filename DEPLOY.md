@@ -184,14 +184,21 @@ journalctl -u stock-analyzer -f
 
 | 配置项 | 说明 | 获取方式 |
 |--------|------|----------|
-| `GEMINI_API_KEY` | AI 分析必需 | [Google AI Studio](https://aistudio.google.com/) |
+| `OPENAI_API_KEY` | AI 分析必需（OpenAI 兼容格式） | OpenAI / DeepSeek / 通义千问等平台 |
 | `STOCK_LIST` | 自选股列表 | 逗号分隔的股票代码 |
-| `WECHAT_WEBHOOK_URL` | 微信推送 | 企业微信群机器人 |
+| `WECHAT_WEBHOOK_URL` 或 `BARK_DEVICE_KEY` | 通知渠道（企微 / Bark，二选一或同时配置） | 企业微信群机器人 / Bark App |
 
 ### 可选配置项
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
+| `OPENAI_BASE_URL` | OpenAI 官方地址 | 第三方 API 地址（如 DeepSeek: `https://api.deepseek.com/v1`） |
+| `OPENAI_MODEL` | `gpt-4o-mini` | 模型名称 |
+| `OPENAI_REQUEST_DELAY` | `2.0` | 请求间隔（秒） |
+| `OPENAI_MAX_RETRIES` | `5` | 最大重试次数 |
+| `OPENAI_RETRY_DELAY` | `5.0` | 重试基础延时（秒） |
+| `BARK_SERVER_URL` | `https://api.day.app` | Bark 服务器地址（自建可改） |
+| `BARK_GROUP` | `股票分析` | Bark 通知分组 |
 | `SCHEDULE_ENABLED` | `false` | 是否启用定时任务 |
 | `SCHEDULE_TIME` | `18:00` | 每日执行时间 |
 | `MARKET_REVIEW_ENABLED` | `true` | 是否启用大盘复盘 |
@@ -201,7 +208,7 @@ journalctl -u stock-analyzer -f
 
 ## 🌐 代理配置
 
-如果服务器在国内，访问 Gemini API 需要代理：
+如果服务器在国内，访问 OpenAI 官方 API 需要代理（DeepSeek、通义千问等国内 API 不需要）：
 
 ### Docker 方式
 
@@ -267,7 +274,7 @@ docker-compose build --no-cache
 
 ### 2. API 访问超时
 
-检查代理配置，确保服务器能访问 Gemini API。
+检查代理配置，确保服务器能访问 OpenAI 兼容 API。
 
 ### 3. 数据库锁定
 
@@ -348,13 +355,16 @@ git push -u origin main
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|------|
-| `GEMINI_API_KEY` | Gemini AI API Key | ✅ |
-| `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | ✅ |
+| `OPENAI_API_KEY` | OpenAI 兼容 API Key | ✅ |
+| `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | 二选一 |
+| `BARK_DEVICE_KEY` | Bark 设备 Key（iOS 推送） | 二选一 |
 | `STOCK_LIST` | 自选股列表，如 `600519,300750` | ✅ |
 | `TAVILY_API_KEYS` | Tavily 搜索 API Key | 推荐 |
 | `SERPAPI_API_KEYS` | SerpAPI Key | 可选 |
 | `TUSHARE_TOKEN` | Tushare Token | 可选 |
-| `GEMINI_MODEL` | 模型名称（默认 gemini-2.0-flash） | 可选 |
+| `OPENAI_BASE_URL` | API 地址（默认 OpenAI 官方） | 可选 |
+| `OPENAI_MODEL` | 模型名称（默认 gpt-4o-mini） | 可选 |
+| `BARK_SERVER_URL` | Bark 服务器地址（默认 https://api.day.app） | 可选 |
 
 #### 3. 验证 Workflow 文件
 
