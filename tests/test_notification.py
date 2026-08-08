@@ -34,6 +34,57 @@ def make_result(code='600519', name='贵州茅台', advice='买入', score=75):
     )
 
 
+def make_full_result():
+    """构造带完整数据（实时行情/趋势/情报/结论）的分析结果"""
+    result = AnalysisResult(
+        code='600519',
+        name='贵州茅台',
+        sentiment_score=75,
+        trend_prediction='看多',
+        operation_advice='买入',
+        buy_reason='缩量回踩MA5支撑，乖离率安全，多头排列',
+        risk_warning='注意解禁风险',
+        dashboard={
+            'core_conclusion': {
+                'one_sentence': '回踩MA5可分批介入',
+                'position_advice': {
+                    'no_position': '空仓者可在回踩时建仓',
+                    'has_position': '持仓者可继续持有',
+                },
+            },
+            'intelligence': {
+                'latest_news': '茅台发布一季报经营数据公告',
+                'risk_alerts': ['风险：大额解禁'],
+                'positive_catalysts': ['利好：业绩预增'],
+            },
+            'battle_plan': {
+                'sniper_points': {
+                    'ideal_buy': '1300元',
+                    'stop_loss': '1280元',
+                    'take_profit': '1400元',
+                },
+            },
+        },
+        realtime_data={
+            'price': 1309.22,
+            'change_pct': 0.05,
+            'volume_ratio': 0.63,
+            'turnover_rate': 0.2,
+            'pe_ratio': 19.79,
+            'pb_ratio': 7.03,
+            'total_mv': 1.636632e12,
+            'circ_mv': 1.636632e12,
+        },
+        trend_data={
+            'ma_alignment': '多头排列',
+            'bias_ma5': -0.46,
+            'signal_score': 68,
+            'buy_signal': '持有',
+        },
+    )
+    return result
+
+
 # ========== BarkNotifier 基础测试 ==========
 
 class TestBarkNotifier:
@@ -244,3 +295,81 @@ class TestMultiChannel:
 
         assert status == {'wechat': True, 'bark': True}
         assert mock_post.call_count == 2
+
+
+# ========== Bark 推送内容测试（数据先行，LLM 结论收尾） ==========
+
+class TestBarkContent:
+
+    def test_content_contains_realtime_data(self, monkeypatch):
+        """推送内容包含实时行情数据"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([make_full_result()], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '实时行情' in body
+        assert '1309.22' in body
+        assert '量比 0.63' in body
+        assert '换手 0.2%' in body
+        assert 'PE 19.79' in body
+        assert 'PB 7.03' in body
+
+    def test_content_contains_trend_and_news(self, monkeypatch):
+        """推送内容包含技术面和情报摘要"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([make_full_result()], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '技术面' in body
+        assert '多头排列' in body
+        assert '乖离' in body
+        assert '新闻' in body or '茅台' in body
+        assert '风险' in body
+        assert '利好' in body
+
+    def test_llm_conclusion_after_data(self, monkeypatch):
+        """LLM 结论出现在数据之后（数据先行，结论收尾）"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([make_full_result()], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '结论' in body
+        assert '理由' in body
+        # 结论行在实时行情行之后
+        assert body.index('结论') > body.index('实时行情')
+        # 理由包含具体操作依据
+        assert '理由' in body
+
+    def test_content_contains_sniper_points(self, monkeypatch):
+        """推送内容包含狙击点位"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([make_full_result()], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '1300元' in body  # 理想买入点
+        assert '1280元' in body  # 止损
+        assert '1400元' in body  # 目标
+
+    def test_content_without_data_still_works(self, monkeypatch):
+        """无实时数据时内容正常生成（不报错）"""
+        monkeypatch.setenv('BARK_DEVICE_KEY', 'device-key-123')
+        Config.reset_instance()
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            send_notifications([make_result()], title='测试')
+
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '贵州茅台' in body
+        assert '买入' in body

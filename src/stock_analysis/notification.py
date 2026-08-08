@@ -1106,9 +1106,14 @@ def send_notifications(results: List[AnalysisResult], title: str = "") -> Dict[s
 
 def _generate_bark_content(results: List[AnalysisResult]) -> str:
     """
-    生成 Bark 推送内容（精简版）
+    生成 Bark 推送内容（完整数据版）
 
-    Bark 通知栏仅显示前 ~200 字符，内容尽量精简
+    布局原则：数据先行，LLM 结论收尾
+    1. 📊 实时行情（价格/量比/换手/PE/PB/市值）
+    2. 📈 技术面（均线排列/乖离率/趋势评分）
+    3. 📰 情报摘要（新闻/风险/利好）
+    4. 💡 LLM 结论 + 操作理由（最后，带理由）
+    5. 📍 狙击点位 + 检查清单
     """
     report_date = datetime.now().strftime('%Y-%m-%d')
 
@@ -1118,13 +1123,121 @@ def _generate_bark_content(results: List[AnalysisResult]) -> str:
     hold_count = sum(1 for r in results if r.operation_advice in ['持有', '观望'])
 
     lines = [
-        f"{report_date} | {len(results)}只 | 🟢{buy_count} 🟡{hold_count} 🔴{sell_count}",
+        f"🎯 {report_date} 决策仪表盘",
+        f"{len(results)}只 | 🟢买入:{buy_count} 🟡观望:{hold_count} 🔴卖出:{sell_count}",
         "",
     ]
 
+    def fmt_amount(value) -> str:
+        """格式化市值（元 -> 亿）"""
+        try:
+            v = float(value)
+            if v >= 1e8:
+                return f"{v / 1e8:.0f}亿"
+            if v > 0:
+                return f"{v:.0f}万"
+            return "N/A"
+        except (TypeError, ValueError):
+            return "N/A"
+
+    def truncate(text: str, length: int = 60) -> str:
+        text = (text or "").strip()
+        return text[:length] + "..." if len(text) > length else text
+
     for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
         emoji = r.get_emoji()
-        lines.append(f"{emoji} {r.name}({r.code}) {r.operation_advice} {r.sentiment_score}分")
+        dashboard = r.dashboard or {}
+        core = dashboard.get('core_conclusion', {}) if dashboard else {}
+        battle = dashboard.get('battle_plan', {}) if dashboard else {}
+        intel = dashboard.get('intelligence', {}) if dashboard else {}
+
+        lines.append(f"{emoji} {r.name}({r.code}) | {r.operation_advice} | 评分{r.sentiment_score} | {r.trend_prediction}")
+        lines.append("")
+
+        # ===== 1. 实时行情（原始数据，非 LLM 转述） =====
+        rt = r.realtime_data or {}
+        if rt:
+            price = rt.get('price')
+            change_pct = rt.get('change_pct')
+            parts = []
+            if price:
+                pct_str = f"({change_pct:+.2f}%)" if isinstance(change_pct, (int, float)) else ""
+                parts.append(f"现价 {price}{pct_str}")
+            if rt.get('volume_ratio') is not None:
+                parts.append(f"量比 {rt.get('volume_ratio')}")
+            if rt.get('turnover_rate') is not None:
+                parts.append(f"换手 {rt.get('turnover_rate')}%")
+            if rt.get('pe_ratio'):
+                parts.append(f"PE {rt.get('pe_ratio')}")
+            if rt.get('pb_ratio'):
+                parts.append(f"PB {rt.get('pb_ratio')}")
+            mv = fmt_amount(rt.get('total_mv'))
+            if mv != "N/A":
+                parts.append(f"市值 {mv}")
+            if parts:
+                lines.append(f"📊 实时行情: {' | '.join(parts)}")
+
+        # ===== 2. 技术面（均线/乖离率/趋势评分） =====
+        tr = r.trend_data or {}
+        if tr:
+            tech_parts = []
+            if tr.get('ma_alignment'):
+                tech_parts.append(f"均线 {tr.get('ma_alignment')}")
+            if isinstance(tr.get('bias_ma5'), (int, float)):
+                bias = tr.get('bias_ma5')
+                mark = "🚨" if bias > 5 else ("⚠️" if bias > 2 else "✅")
+                tech_parts.append(f"乖离 {bias:+.2f}%{mark}")
+            if tr.get('signal_score') is not None:
+                tech_parts.append(f"趋势分 {tr.get('signal_score')}")
+            if tr.get('buy_signal'):
+                tech_parts.append(f"信号 {tr.get('buy_signal')}")
+            if tech_parts:
+                lines.append(f"📈 技术面: {' | '.join(tech_parts)}")
+
+        # ===== 3. 情报摘要（新闻/风险/利好） =====
+        intel_lines = []
+        if intel.get('latest_news'):
+            intel_lines.append(f"📰 {truncate(intel.get('latest_news'), 70)}")
+        risk_alerts = intel.get('risk_alerts', []) or []
+        if risk_alerts:
+            intel_lines.append(f"🚨 风险: {truncate(risk_alerts[0], 50)}")
+        catalysts = intel.get('positive_catalysts', []) or []
+        if catalysts:
+            intel_lines.append(f"✨ 利好: {truncate(catalysts[0], 50)}")
+        if intel_lines:
+            lines.extend(intel_lines)
+
+        # ===== 4. LLM 结论（最后，带理由） =====
+        one_sentence = core.get('one_sentence', r.analysis_summary)
+        if one_sentence:
+            lines.append(f"💡 结论: {truncate(one_sentence, 70)}")
+
+        reason = r.buy_reason
+        if not reason:
+            pos_advice = core.get('position_advice', {}) or {}
+            reason = pos_advice.get('no_position') or pos_advice.get('has_position') or ""
+        if reason:
+            lines.append(f"📌 理由: {truncate(reason, 70)}")
+
+        # ===== 5. 狙击点位 + 检查清单 =====
+        sniper = battle.get('sniper_points', {}) or {}
+        points = []
+        if sniper.get('ideal_buy'):
+            points.append(f"买 {truncate(sniper.get('ideal_buy'), 18)}")
+        if sniper.get('stop_loss'):
+            points.append(f"损 {truncate(sniper.get('stop_loss'), 18)}")
+        if sniper.get('take_profit'):
+            points.append(f"标 {truncate(sniper.get('take_profit'), 18)}")
+        if points:
+            lines.append(f"📍 {' | '.join(points)}")
+
+        if r.risk_warning:
+            lines.append(f"⚠️ 提示: {truncate(r.risk_warning, 60)}")
+
+        lines.append("---")
+        lines.append("")
+
+    lines.append(f"*生成时间: {datetime.now().strftime('%H:%M')} | AI生成仅供参考*")
 
     return "\n".join(lines)
 

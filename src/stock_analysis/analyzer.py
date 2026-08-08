@@ -102,6 +102,11 @@ class AnalysisResult:
     success: bool = True
     error_message: Optional[str] = None
     
+    # ========== 原始输入数据（供推送展示） ==========
+    realtime_data: Optional[Dict[str, Any]] = None  # 实时行情（量比/换手/PE/PB/市值等）
+    trend_data: Optional[Dict[str, Any]] = None     # 趋势分析结果（均线/乖离率/评分）
+    chip_data: Optional[Dict[str, Any]] = None      # 筹码分布（获利比例/成本/集中度）
+    
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
@@ -132,6 +137,9 @@ class AnalysisResult:
             'search_performed': self.search_performed,
             'success': self.success,
             'error_message': self.error_message,
+            'realtime_data': self.realtime_data,
+            'trend_data': self.trend_data,
+            'chip_data': self.chip_data,
         }
     
     def get_core_conclusion(self) -> str:
@@ -601,6 +609,11 @@ class OpenAIAnalyzer:
             result = self._parse_response(response_text, code, name)
             result.raw_response = response_text
             result.search_performed = bool(news_context)
+            
+            # 保留原始输入数据（供推送展示：实时行情/趋势/筹码）
+            result.realtime_data = context.get('realtime')
+            result.trend_data = context.get('trend_analysis')
+            result.chip_data = context.get('chip')
             
             logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
             
