@@ -3,8 +3,8 @@
 .env.local
 .env.*.local
 
-# 多用户推送配置（个人配置，含设备 Key 占位符引用的环境变量名）
-push_config.yaml
+# 注意：push_config.yaml 需要提交到仓库（GitHub Actions 使用），
+# device_key 必须使用 ${ENV} 占位符（本地 .env / GHA secrets），严禁写明文 Key
 
 # 测试文件（可能包含敏感配置）
 test_*.py

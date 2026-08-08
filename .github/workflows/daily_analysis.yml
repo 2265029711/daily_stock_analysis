@@ -58,6 +58,12 @@ jobs:
           TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
           
           # 搜索服务
+          # 方式一（推荐）：一个 key 一行
+          TAVILY_API_KEY_1: ${{ secrets.TAVILY_API_KEY_1 }}
+          TAVILY_API_KEY_2: ${{ secrets.TAVILY_API_KEY_2 }}
+          TAVILY_API_KEY_3: ${{ secrets.TAVILY_API_KEY_3 }}
+          TAVILY_API_KEY_4: ${{ secrets.TAVILY_API_KEY_4 }}
+          # 方式二（兼容）：逗号分隔单行
           TAVILY_API_KEYS: ${{ secrets.TAVILY_API_KEYS }}
           SERPAPI_API_KEYS: ${{ secrets.SERPAPI_API_KEYS }}
           
@@ -66,17 +72,22 @@ jobs:
           BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
           BARK_SERVER_URL: ${{ secrets.BARK_SERVER_URL || 'https://api.day.app' }}
           BARK_GROUP: ${{ secrets.BARK_GROUP || '股票分析' }}
-          # 多用户推送（push_config.yaml 中使用 ${ENV} 占位符时，按需添加映射，例如：
-          # BARK_KEY_USER_A: ${{ secrets.BARK_KEY_USER_A }}
-          # BARK_KEY_USER_B: ${{ secrets.BARK_KEY_USER_B }}）
+          # 多用户推送（push_config.yaml 使用 ${ENV} 占位符时，在此映射 secrets）
+          # 未配置的 secret 为空字符串 → 对应占位符解析失败 → 该用户自动跳过，不影响其他用户
+          BARK_KEY_USER_A: ${{ secrets.BARK_KEY_USER_A }}
+          BARK_KEY_USER_B: ${{ secrets.BARK_KEY_USER_B }}
+          BARK_KEY_USER_C: ${{ secrets.BARK_KEY_USER_C }}
+          BARK_KEY_USER_D: ${{ secrets.BARK_KEY_USER_D }}
           
           # 自选股列表 (从 secrets 或使用默认值)
           STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}
           
+          # 按需分析：只分析用户请求的股票（配合 push_config.yaml）
+          ANALYZE_REQUESTED_ONLY: ${{ secrets.ANALYZE_REQUESTED_ONLY || 'false' }}
+          
           # 其他配置
           LOG_LEVEL: INFO
-          DATA_DAYS: 60
-          MAX_CONCURRENT: 3
+          MAX_WORKERS: 3
         run: |
           # 判断运行模式
           MODE="${{ github.event.inputs.mode || 'full' }}"

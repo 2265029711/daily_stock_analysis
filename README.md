@@ -56,11 +56,17 @@
 | `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | 二选一* |
 | `BARK_DEVICE_KEY` | Bark 设备 Key（iOS 推送） | 二选一* |
 | `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
-| `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
+| `TAVILY_API_KEY_1` | Tavily Key（一个 key 一个 secret，最多 4 个自动轮询） | 推荐 |
+| `TAVILY_API_KEYS` | Tavily Key（逗号分隔单行，兼容格式） | 可选 |
+| `BARK_KEY_USER_A/B/C/D` | 多用户推送设备 Key（与 `push_config.yaml` 占位符对应，未配置的用户自动跳过） | 可选 |
+| `ANALYZE_REQUESTED_ONLY` | 按需分析开关（`true` 只分析用户请求的股票） | 可选 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) Key | 可选 |
 | `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/) Token | 可选 |
 
 > *注：`WECHAT_WEBHOOK_URL` 和 `BARK_DEVICE_KEY` 至少配置一个（推送渠道互相独立，可同时配置）
+>
+> **多用户推送**：`push_config.yaml` 需随仓库提交（device_key 用 `${ENV}` 占位符，无明文 Key），
+> 每个用户在仓库 Secrets 中添加对应的 `BARK_KEY_USER_X`，workflow 已预置 A/B/C/D 映射。
 
 #### 3. 启用 Actions
 
