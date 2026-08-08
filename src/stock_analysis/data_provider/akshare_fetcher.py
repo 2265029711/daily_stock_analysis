@@ -466,12 +466,10 @@ class AkshareFetcher(BaseFetcher):
         try:
             import requests as _requests
             
-            # 转换代码格式: 600519 -> sh600519, 000001 -> sz000001
-            if stock_code.startswith('6'):
-                symbol = f"sh{stock_code}"
-            elif stock_code.startswith(('0', '3')):
-                symbol = f"sz{stock_code}"
-            else:
+            # 转换代码格式（复用腾讯日线源的转换规则，支持股票/ETF/基金/北交所）
+            from .tencent_fetcher import to_tencent_symbol
+            symbol = to_tencent_symbol(stock_code)
+            if not symbol:
                 logger.warning(f"[腾讯行情] 不支持的代码格式: {stock_code}")
                 return None
             
