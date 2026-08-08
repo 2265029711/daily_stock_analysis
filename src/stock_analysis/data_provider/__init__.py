@@ -12,6 +12,7 @@
 
 from .base import BaseFetcher, DataFetcherManager
 from .akshare_fetcher import AkshareFetcher
+from .tencent_fetcher import TencentFetcher
 from .tushare_fetcher import TushareFetcher
 from .baostock_fetcher import BaostockFetcher
 from .yfinance_fetcher import YfinanceFetcher
@@ -20,6 +21,7 @@ __all__ = [
     'BaseFetcher',
     'DataFetcherManager',
     'AkshareFetcher',
+    'TencentFetcher',
     'TushareFetcher',
     'BaostockFetcher',
     'YfinanceFetcher',

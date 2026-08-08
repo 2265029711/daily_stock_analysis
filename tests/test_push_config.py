@@ -37,7 +37,7 @@ users:
     device_key: key-b-direct
     group: 个股分析
     push_market: false
-    stocks: [600519, 300750]
+    stocks: ['600519', '300750']
 
   - name: 用户C-全部
     device_key: ${BARK_KEY_USER_C}
@@ -99,7 +99,7 @@ class TestPushConfigLoad:
 
     def test_missing_env_user_skipped(self, tmp_path, monkeypatch):
         """占位符对应的环境变量缺失时，该用户被跳过"""
-        monkeypatch.delenv('BARK_KEY_USER_A', raising=False)
+        monkeypatch.setenv('BARK_KEY_USER_A', '')
         path = write_config(tmp_path, SAMPLE_YAML)
         cfg = PushConfig.load(path)
         # 用户A（占位符未解析）+ 用户C（占位符未解析）被跳过，只剩用户B
@@ -166,7 +166,7 @@ class TestPushConfigValidate:
 users:
   - name: 用户X
     device_key: key-x
-    stocks: [12345, abcdef, 600519]
+    stocks: ['12345', 'abcdef', '600519']
 """
         path = write_config(tmp_path, yaml)
         cfg = PushConfig.load(path)
@@ -174,6 +174,20 @@ users:
         assert any('12345' in w for w in warnings)
         assert any('abcdef' in w for w in warnings)
         assert not any('600519' in w for w in warnings)
+
+    def test_validate_leading_zero_code(self, tmp_path, monkeypatch):
+        """带前导零的代码（'000725' 引号字符串）不被误判"""
+        monkeypatch.setenv('BARK_KEY_USER_A', 'key-a')
+        yaml = """
+users:
+  - name: 用户X
+    device_key: key-x
+    stocks: ['000725']
+"""
+        path = write_config(tmp_path, yaml)
+        cfg = PushConfig.load(path)
+        warnings = cfg.validate(['600519'])
+        assert not any('000725' in w for w in warnings)
 
     def test_validate_market_only_user(self, tmp_path, monkeypatch):
         """只收大盘的用户给出提示（非错误）"""

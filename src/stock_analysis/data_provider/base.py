@@ -262,17 +262,20 @@ class DataFetcherManager:
         
         按优先级排序：
         1. AkshareFetcher (Priority 1)
-        2. TushareFetcher (Priority 2)
-        3. BaostockFetcher (Priority 3)
-        4. YfinanceFetcher (Priority 4)
+        2. TencentFetcher (Priority 2)
+        3. TushareFetcher (Priority 3)
+        4. BaostockFetcher (Priority 4)
+        5. YfinanceFetcher (Priority 5)
         """
         from .akshare_fetcher import AkshareFetcher
+        from .tencent_fetcher import TencentFetcher
         from .tushare_fetcher import TushareFetcher
         from .baostock_fetcher import BaostockFetcher
         from .yfinance_fetcher import YfinanceFetcher
         
         self._fetchers = [
             AkshareFetcher(),
+            TencentFetcher(),
             TushareFetcher(),
             BaostockFetcher(),
             YfinanceFetcher(),

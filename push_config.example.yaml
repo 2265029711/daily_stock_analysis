@@ -11,7 +11,8 @@
 #   server_url  Bark 服务器地址（可选，默认 https://api.day.app）
 #   group       iOS 通知分组（可选，默认 股票分析）
 #   push_market 是否接收大盘复盘（true/false）
-#   stocks      接收的个股代码列表；[] 表示不接收个股；"all" 表示全部自选股
+#   stocks      接收的个股代码列表。⚠️ 代码必须用引号包裹（字符串），如 '000725'；
+#               [] 表示不接收个股；"all" 表示全部自选股
 #
 # 示例（三个用户）：
 #   - 用户A 只收大盘复盘
@@ -29,7 +30,7 @@ users:
     device_key: ${BARK_KEY_USER_B}
     group: 个股分析
     push_market: false
-    stocks: [600519, 300750]
+    stocks: ['600519', '300750']
 
   - name: 用户C-全部
     device_key: ${BARK_KEY_USER_C}

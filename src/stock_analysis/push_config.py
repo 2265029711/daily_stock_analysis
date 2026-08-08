@@ -113,6 +113,13 @@ class PushConfig:
         Returns:
             PushConfig 对象（文件不存在或格式错误时返回空配置）
         """
+        # 确保 .env 已加载（独立使用 push_config 时也能解析 ${ENV} 占位符）
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
+        except ImportError:
+            pass
+
         path = Path(path) if path else DEFAULT_CONFIG_PATH
 
         if not path.exists():
@@ -146,6 +153,7 @@ class PushConfig:
             if all_stocks:
                 stocks: List[str] = []
             elif isinstance(stocks_raw, list):
+                # 股票代码按字符串读取（配置中必须用引号包裹，如 '000725'）
                 stocks = [str(s).strip() for s in stocks_raw if str(s).strip()]
             else:
                 stocks = []

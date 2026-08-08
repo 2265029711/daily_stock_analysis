@@ -253,7 +253,7 @@ users:
     device_key: ${BARK_KEY_USER_B}
     group: 个股分析
     push_market: false
-    stocks: [600519, 300750]          # 指定个股；"all" = 全部自选股
+    stocks: ['600519', '300750']    # 指定个股（⚠️ 代码必须用引号包裹）；"all" = 全部自选股
 ```
 
 - 复制 `push_config.example.yaml` 为 `push_config.yaml` 使用
