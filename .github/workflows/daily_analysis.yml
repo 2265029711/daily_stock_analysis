@@ -46,7 +46,7 @@ jobs:
           # AI 分析（OpenAI 兼容 API）
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
           OPENAI_REQUEST_DELAY: '3.0'  # GitHub Actions 建议增加延时
           OPENAI_MAX_RETRIES: '5'
           OPENAI_RETRY_DELAY: '5.0'

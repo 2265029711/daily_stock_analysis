@@ -192,8 +192,6 @@ journalctl -u stock-analyzer -f
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `OPENAI_BASE_URL` | OpenAI 官方地址 | 第三方 API 地址（如 DeepSeek: `https://api.deepseek.com/v1`） |
-| `OPENAI_MODEL` | `gpt-4o-mini` | 模型名称 |
 | `OPENAI_REQUEST_DELAY` | `2.0` | 请求间隔（秒） |
 | `OPENAI_MAX_RETRIES` | `5` | 最大重试次数 |
 | `OPENAI_RETRY_DELAY` | `5.0` | 重试基础延时（秒） |
@@ -362,8 +360,8 @@ git push -u origin main
 | `TAVILY_API_KEYS` | Tavily 搜索 API Key | 推荐 |
 | `SERPAPI_API_KEYS` | SerpAPI Key | 可选 |
 | `TUSHARE_TOKEN` | Tushare Token | 可选 |
-| `OPENAI_BASE_URL` | API 地址（默认 OpenAI 官方） | 可选 |
-| `OPENAI_MODEL` | 模型名称（默认 gpt-4o-mini） | 可选 |
+| `OPENAI_BASE_URL` | API 地址（如 https://api.deepseek.com/v1） | ✅ |
+| `OPENAI_MODEL` | 模型名称（如 deepseek-chat） | ✅ |
 | `BARK_SERVER_URL` | Bark 服务器地址（默认 https://api.day.app） | 可选 |
 
 #### 3. 验证 Workflow 文件

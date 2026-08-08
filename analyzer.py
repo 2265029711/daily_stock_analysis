@@ -413,7 +413,8 @@ class OpenAIAnalyzer:
         - OpenAI 官方
         - DeepSeek
         - 通义千问
-        - Moonshot 等
+        - Moonshot
+        - 智谱 GLM 等
         """
         config = get_config()
         
@@ -427,7 +428,11 @@ class OpenAIAnalyzer:
             
             self._openai_client = OpenAI(**client_kwargs)
             self._current_model_name = config.openai_model
-            logger.info(f"OpenAI 兼容 API 初始化成功 (base_url: {config.openai_base_url or 'https://api.openai.com/v1'}, model: {config.openai_model})")
+            if not self._current_model_name:
+                logger.warning(
+                    "OPENAI_MODEL 未配置，请在 .env 中设置 OPENAI_MODEL（模型名称），否则 AI 调用将失败"
+                )
+            logger.info(f"OpenAI 兼容 API 初始化成功 (base_url: {config.openai_base_url or 'https://api.openai.com/v1'}, model: {self._current_model_name})")
         except ImportError:
             logger.error("未安装 openai 库，请运行: pip install openai")
         except Exception as e:

@@ -48,9 +48,9 @@
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `OPENAI_API_KEY` | OpenAI 兼容 API Key（OpenAI/DeepSeek/通义千问等） | ✅ |
-| `OPENAI_BASE_URL` | OpenAI 兼容 API 地址（如 `https://api.deepseek.com/v1`） | 可选 |
-| `OPENAI_MODEL` | OpenAI 兼容模型名称（默认 `gpt-4o-mini`） | 可选 |
+| `OPENAI_API_KEY` | OpenAI 兼容 API Key（OpenAI/DeepSeek/通义千问/GLM 等） | ✅ |
+| `OPENAI_BASE_URL` | OpenAI 兼容 API 地址（如 `https://api.deepseek.com/v1`） | ✅ |
+| `OPENAI_MODEL` | 模型名称（按供应商文档填写，如 `deepseek-chat`/`glm-4-flash`） | ✅ |
 | `WECHAT_WEBHOOK_URL` | 企业微信机器人 Webhook | 二选一* |
 | `BARK_DEVICE_KEY` | Bark 设备 Key（iOS 推送） | 二选一* |
 | `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
@@ -150,6 +150,8 @@ docker-compose logs -f
 ```bash
 # === 必填 ===
 OPENAI_API_KEY=sk-xxxxxxxxxxxx     # OpenAI 兼容 API Key
+OPENAI_BASE_URL=https://api.deepseek.com/v1  # API 地址
+OPENAI_MODEL=deepseek-chat         # 模型名称（按供应商文档）
 STOCK_LIST=600519,300750,002594    # 自选股列表
 
 # === 通知（至少配置一个渠道）===
@@ -158,8 +160,6 @@ BARK_DEVICE_KEY=                   # Bark 设备 Key，iOS 推送（可选）
 
 # === 推荐 ===
 TAVILY_API_KEYS=your_tavily_key    # 新闻搜索
-OPENAI_MODEL=gpt-4o-mini           # 模型名称
-OPENAI_BASE_URL=                   # API 地址（如 https://api.deepseek.com/v1）
 
 # === 可选 ===
 TUSHARE_TOKEN=your_token           # Tushare数据源

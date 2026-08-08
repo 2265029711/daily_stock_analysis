@@ -122,6 +122,16 @@ def test_placeholder_key_invalid(monkeypatch):
     assert analyzer.is_available() is False
 
 
+def test_init_without_model(monkeypatch):
+    """有 Key 但未配置 OPENAI_MODEL 时模型名为 None（不预设默认）"""
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-key-123456')
+    monkeypatch.delenv('OPENAI_MODEL', raising=False)
+    Config.reset_instance()
+    analyzer = OpenAIAnalyzer()
+    assert analyzer.is_available() is True
+    assert analyzer._current_model_name is None
+
+
 def test_call_openai_api_success(monkeypatch):
     """正常调用返回内容"""
     analyzer = make_analyzer(monkeypatch)

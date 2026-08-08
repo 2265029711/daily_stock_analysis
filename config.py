@@ -37,7 +37,7 @@ class Config:
     # === AI 分析配置（OpenAI 兼容格式） ===
     openai_api_key: Optional[str] = None
     openai_base_url: Optional[str] = None  # 如: https://api.openai.com/v1 或 https://api.deepseek.com/v1
-    openai_model: str = "gpt-4o-mini"  # OpenAI 兼容模型名称
+    openai_model: Optional[str] = None  # 模型名称（必填）
     
     # OpenAI API 请求配置（防止 429 限流）
     openai_request_delay: float = 2.0  # 请求间隔（秒）
@@ -140,7 +140,7 @@ class Config:
             tushare_token=os.getenv('TUSHARE_TOKEN'),
             openai_api_key=os.getenv('OPENAI_API_KEY'),
             openai_base_url=os.getenv('OPENAI_BASE_URL'),
-            openai_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini'),
+            openai_model=os.getenv('OPENAI_MODEL'),
             openai_request_delay=float(os.getenv('OPENAI_REQUEST_DELAY', '2.0')),
             openai_max_retries=int(os.getenv('OPENAI_MAX_RETRIES', '5')),
             openai_retry_delay=float(os.getenv('OPENAI_RETRY_DELAY', '5.0')),
@@ -181,7 +181,12 @@ class Config:
             warnings.append("提示：未配置 Tushare Token，将使用其他数据源")
         
         if not self.openai_api_key:
-            warnings.append("警告：未配置 OpenAI API Key，AI 分析功能将不可用")
+            warnings.append("警告：未配置 OPENAI_API_KEY，AI 分析功能将不可用")
+        else:
+            if not self.openai_base_url:
+                warnings.append("警告：未配置 OPENAI_BASE_URL（API 地址），AI 调用将失败")
+            if not self.openai_model:
+                warnings.append("警告：未配置 OPENAI_MODEL（模型名称），AI 调用将失败")
         
         if not self.tavily_api_keys and not self.serpapi_keys:
             warnings.append("提示：未配置搜索引擎 API Key (Tavily/SerpAPI)，新闻搜索功能将不可用")

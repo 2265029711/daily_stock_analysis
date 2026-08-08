@@ -64,10 +64,10 @@ def test_openai_retry_config_custom(monkeypatch):
     assert config.openai_retry_delay == 2.0
 
 
-def test_openai_model_default():
-    """OPENAI_MODEL 未配置时使用默认 gpt-4o-mini"""
+def test_openai_model_not_configured():
+    """OPENAI_MODEL 未配置时为 None（不预设默认模型）"""
     config = get_config()
-    assert config.openai_model == 'gpt-4o-mini'
+    assert config.openai_model is None
 
 
 def test_bark_fields_defaults(monkeypatch):
@@ -97,10 +97,24 @@ def test_validate_without_openai_key():
 
 
 def test_validate_with_openai_key(monkeypatch):
-    """配置 OpenAI Key 后 validate() 不再告警 AI 不可用"""
+    """只配置 Key 时，base_url 和 model 缺失均给出警告"""
     monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-key-123456')
     config = get_config()
     warnings = config.validate()
+    assert not any('AI 分析功能将不可用' in w for w in warnings)
+    assert any('OPENAI_BASE_URL' in w for w in warnings)
+    assert any('OPENAI_MODEL' in w for w in warnings)
+
+
+def test_validate_full_openai_config(monkeypatch):
+    """三项全部配置后不再告警 AI 配置缺失"""
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-key-123456')
+    monkeypatch.setenv('OPENAI_BASE_URL', 'https://api.deepseek.com/v1')
+    monkeypatch.setenv('OPENAI_MODEL', 'deepseek-chat')
+    config = get_config()
+    warnings = config.validate()
+    assert not any('OPENAI_BASE_URL' in w for w in warnings)
+    assert not any('OPENAI_MODEL' in w for w in warnings)
     assert not any('AI 分析功能将不可用' in w for w in warnings)
 
 
