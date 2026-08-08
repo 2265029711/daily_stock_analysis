@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# 多用户推送配置（个人配置，含设备 Key 占位符引用的环境变量名）
+push_config.yaml
+
 # 测试文件（可能包含敏感配置）
 test_*.py
 !tests/

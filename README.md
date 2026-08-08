@@ -184,6 +184,52 @@ schedule:
 | 15:00 | `'0 7 * * 1-5'` |
 | 18:00 | `'0 10 * * 1-5'` |
 
+## 👥 多用户推送（push_config.yaml）
+
+不同用户可以收到不同的推送内容（支持全 A 股，不限于 STOCK_LIST）：
+
+```yaml
+users:
+  - name: 用户A-大盘
+    device_key: ${BARK_KEY_USER_A}   # 支持 ${ENV} 占位符（本地 .env / GHA secrets）
+    group: 大盘走势
+    push_market: true                 # 接收大盘复盘
+    stocks: []                        # 不接收个股
+
+  - name: 用户B-个股
+    device_key: ${BARK_KEY_USER_B}
+    group: 个股分析
+    push_market: false
+    stocks: [600519, 300750]          # 指定个股；"all" = 全部自选股
+```
+
+- 复制 `push_config.example.yaml` 为 `push_config.yaml` 使用
+- 用户指定的股票**自动纳入分析范围**（A 股任意 6 位代码）
+- 每个用户独立推送，失败互不影响；无 `push_config.yaml` 时回退 .env 单 key 配置
+- Bark 推送使用**标准推送模板**，股票过多时**整股截断**（评分低的先丢，不拆分单只股票）
+
+### 📋 标准推送模板（每只股票）
+
+```
+🟢 名称(代码) | 操作建议 | 评分 | 趋势
+📊 实时行情: 现价 | 量比 | 换手 | PE | PB | 市值
+📈 技术面: 均线 | 乖离率 | 趋势分 | 信号
+📰 最新新闻 / 🚨 风险 / ✨ 利好
+💡 结论: 一句话决策
+📌 理由: 操作依据
+📍 买/损/标 狙击点位
+⚠️ 提示: 风险提示
+```
+
+### 🔑 Tavily 多 Key 轮换
+
+`TAVILY_API_KEYS` 支持多个 Key（逗号分隔），自动负载均衡：
+```bash
+TAVILY_API_KEYS=tvly-key1,tvly-key2,tvly-key3
+```
+- 某个 Key **配额用尽**（429/402/rate limit）时自动标记冷却 30 天并切换下一个 Key（状态持久化在 `data/search_keys_state.json`，重启不丢失）
+- 全部 Key 耗尽时跳过搜索并告警，不影响分析主流程
+
 ## 📁 项目结构
 
 ```
@@ -206,6 +252,7 @@ daily_stock_analysis/
 ├── tests/                # 单元测试（pytest）
 ├── scripts/              # 辅助脚本（check_env.py 环境检查）
 ├── docs/                 # 文档（DEPLOY/CHANGELOG/CONTRIBUTING）
+├── push_config.example.yaml  # 多用户推送配置模板
 ├── .github/workflows/    # GitHub Actions
 ├── Dockerfile            # Docker 镜像
 ├── docker-compose.yml    # Docker 编排

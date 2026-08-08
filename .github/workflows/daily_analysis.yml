@@ -66,6 +66,9 @@ jobs:
           BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
           BARK_SERVER_URL: ${{ secrets.BARK_SERVER_URL || 'https://api.day.app' }}
           BARK_GROUP: ${{ secrets.BARK_GROUP || '股票分析' }}
+          # 多用户推送（push_config.yaml 中使用 ${ENV} 占位符时，按需添加映射，例如：
+          # BARK_KEY_USER_A: ${{ secrets.BARK_KEY_USER_A }}
+          # BARK_KEY_USER_B: ${{ secrets.BARK_KEY_USER_B }}）
           
           # 自选股列表 (从 secrets 或使用默认值)
           STOCK_LIST: ${{ secrets.STOCK_LIST || '600519' }}

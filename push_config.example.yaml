@@ -1,0 +1,38 @@
+# ===================================
+# 多用户 Bark 推送配置模板
+# 复制为 push_config.yaml 后按需修改
+# ===================================
+#
+# 字段说明：
+#   name        用户名称（仅日志显示）
+#   device_key  Bark 设备 Key。支持 ${ENV} 占位符引用环境变量：
+#               - 本地：在 .env 中配置 BARK_KEY_XXX=设备key
+#               - GitHub Actions：在仓库 Secrets 配置后于 workflow 中映射为环境变量
+#   server_url  Bark 服务器地址（可选，默认 https://api.day.app）
+#   group       iOS 通知分组（可选，默认 股票分析）
+#   push_market 是否接收大盘复盘（true/false）
+#   stocks      接收的个股代码列表；[] 表示不接收个股；"all" 表示全部自选股
+#
+# 示例（三个用户）：
+#   - 用户A 只收大盘复盘
+#   - 用户B 收自选股前两只
+#   - 用户C 收全部个股 + 大盘
+
+users:
+  - name: 用户A-大盘
+    device_key: ${BARK_KEY_USER_A}
+    group: 大盘走势
+    push_market: true
+    stocks: []
+
+  - name: 用户B-个股
+    device_key: ${BARK_KEY_USER_B}
+    group: 个股分析
+    push_market: false
+    stocks: [600519, 300750]
+
+  - name: 用户C-全部
+    device_key: ${BARK_KEY_USER_C}
+    group: 个股分析
+    push_market: true
+    stocks: all

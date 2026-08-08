@@ -368,6 +368,12 @@ git push -u origin main
 | `OPENAI_MODEL` | 模型名称（如 deepseek-chat） | ✅ |
 | `BARK_SERVER_URL` | Bark 服务器地址（默认 https://api.day.app） | 可选 |
 
+> **多用户推送**：提交 `push_config.yaml`（复制自 `push_config.example.yaml`），
+> 各用户 device_key 使用 `${ENV}` 占位符（如 `${BARK_KEY_USER_A}`），
+> 然后在 workflow 的 env 中添加对应映射：
+> `BARK_KEY_USER_A: ${{ secrets.BARK_KEY_USER_A }}`（每个用户一个 secret）。
+> 用户配置中指定的股票会自动纳入分析范围，支持全 A 股。
+
 #### 3. 验证 Workflow 文件
 
 确保 `.github/workflows/daily_analysis.yml` 文件存在且已提交：
