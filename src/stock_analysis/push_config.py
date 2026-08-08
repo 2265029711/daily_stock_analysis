@@ -213,6 +213,29 @@ class PushConfig:
                     requested.append(code)
         return requested
 
+    def resolve_analysis_stocks(
+        self,
+        all_stocks: List[str],
+        requested_only: bool = False,
+    ) -> List[str]:
+        """
+        解析实际需要分析的股票列表（按需分析）
+        
+        - requested_only=False：返回全局 STOCK_LIST（向后兼容，全量分析）
+        - requested_only=True：只返回用户实际请求的股票并集
+          （无用户请求个股时返回空列表，跳过个股分析）
+        
+        Args:
+            all_stocks: 全局自选股列表（STOCK_LIST）
+            requested_only: 是否启用按需分析
+            
+        Returns:
+            待分析的股票代码列表
+        """
+        if not requested_only or not self.is_configured:
+            return list(all_stocks)
+        return self.get_requested_stocks(all_stocks)
+
     def validate(self, all_stocks: List[str]) -> List[str]:
         """
         校验用户配置

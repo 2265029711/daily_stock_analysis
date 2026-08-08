@@ -66,6 +66,7 @@ class Config:
     # === 系统配置 ===
     max_workers: int = 3  # 低并发防封禁
     debug: bool = False
+    analyze_requested_only: bool = False  # 按需分析：只分析用户请求的股票（不做多余查询）
     
     # === 定时任务配置 ===
     schedule_enabled: bool = False            # 是否启用定时任务
@@ -165,6 +166,7 @@ class Config:
             log_level=os.getenv('LOG_LEVEL') or 'INFO',
             max_workers=int(os.getenv('MAX_WORKERS') or '3'),
             debug=(os.getenv('DEBUG') or 'false').lower() == 'true',
+            analyze_requested_only=(os.getenv('ANALYZE_REQUESTED_ONLY') or 'false').lower() == 'true',
             schedule_enabled=(os.getenv('SCHEDULE_ENABLED') or 'false').lower() == 'true',
             schedule_time=os.getenv('SCHEDULE_TIME') or '18:00',
             market_review_enabled=(os.getenv('MARKET_REVIEW_ENABLED') or 'true').lower() == 'true',

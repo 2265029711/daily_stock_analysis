@@ -157,6 +157,61 @@ class TestPushUserStocks:
         assert set(requested) == {'600519', '300750', '000001'}
 
 
+class TestResolveAnalysisStocks:
+
+    def test_default_returns_all(self, tmp_path, monkeypatch):
+        """默认（非按需）返回全局 STOCK_LIST"""
+        monkeypatch.setenv('BARK_KEY_USER_A', 'key-a')
+        monkeypatch.setenv('BARK_KEY_USER_C', 'key-c')
+        path = write_config(tmp_path, SAMPLE_YAML)
+        cfg = PushConfig.load(path)
+        result = cfg.resolve_analysis_stocks(['600519', '300750', '002594'])
+        assert result == ['600519', '300750', '002594']
+
+    def test_requested_only_returns_user_union(self, tmp_path, monkeypatch):
+        """按需分析只返回用户请求的股票并集"""
+        monkeypatch.setenv('BARK_KEY_USER_A', 'key-a')
+        monkeypatch.setenv('BARK_KEY_USER_C', 'key-c')
+        path = write_config(tmp_path, SAMPLE_YAML)
+        cfg = PushConfig.load(path)
+        # 用户B: 600519,300750；用户C: all(全局)
+        result = cfg.resolve_analysis_stocks(['600519', '300750', '002594'], requested_only=True)
+        assert set(result) == {'600519', '300750', '002594'}
+
+    def test_requested_only_with_specific_users(self, tmp_path, monkeypatch):
+        """按需分析时只分析用户明确指定的股票（不含全局多余的）"""
+        yaml = """
+users:
+  - name: 用户B
+    device_key: key-b
+    stocks: ['600664', '000725']
+"""
+        path = write_config(tmp_path, yaml)
+        cfg = PushConfig.load(path)
+        result = cfg.resolve_analysis_stocks(['600519', '300750', '002594'], requested_only=True)
+        assert result == ['600664', '000725']
+
+    def test_requested_only_no_stock_users(self, tmp_path, monkeypatch):
+        """按需分析时所有用户都不要个股 → 返回空（跳过个股分析）"""
+        yaml = """
+users:
+  - name: 用户A
+    device_key: key-a
+    push_market: true
+    stocks: []
+"""
+        path = write_config(tmp_path, yaml)
+        cfg = PushConfig.load(path)
+        result = cfg.resolve_analysis_stocks(['600519', '300750'], requested_only=True)
+        assert result == []
+
+    def test_requested_only_no_config(self, tmp_path):
+        """按需分析但无配置用户 → 回退全局列表"""
+        cfg = PushConfig.load(tmp_path / 'nonexist.yaml')
+        result = cfg.resolve_analysis_stocks(['600519'], requested_only=True)
+        assert result == ['600519']
+
+
 class TestPushConfigValidate:
 
     def test_validate_bad_code_format(self, tmp_path, monkeypatch):

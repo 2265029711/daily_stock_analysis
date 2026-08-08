@@ -498,24 +498,37 @@ class StockAnalysisPipeline:
         # 使用配置中的股票列表
         if stock_codes is None:
             stock_codes = self.config.stock_list
-            # 合并多用户配置中指定的股票（自动纳入分析范围，支持全 A 股）
+            # 多用户推送：决定分析范围
             try:
                 from stock_analysis.push_config import get_push_config
                 push_config = get_push_config()
                 if push_config.is_configured:
-                    extra = push_config.get_requested_stocks(self.config.stock_list)
-                    merged = list(stock_codes)
-                    for code in extra:
-                        if code not in merged:
-                            merged.append(code)
-                    if len(merged) > len(stock_codes):
-                        logger.info(f"多用户配置追加股票: {', '.join(c for c in merged if c not in stock_codes)}")
-                    stock_codes = merged
+                    if self.config.analyze_requested_only:
+                        # 按需分析：只分析用户实际请求的股票（不做多余查询）
+                        stock_codes = push_config.resolve_analysis_stocks(
+                            self.config.stock_list, requested_only=True
+                        )
+                        logger.info(
+                            f"按需分析模式: 仅分析用户请求的 {len(stock_codes)} 只: {stock_codes}"
+                        )
+                    else:
+                        # 兼容模式：STOCK_LIST 全量 + 合并用户股票
+                        extra = push_config.get_requested_stocks(self.config.stock_list)
+                        merged = list(stock_codes)
+                        for code in extra:
+                            if code not in merged:
+                                merged.append(code)
+                        if len(merged) > len(stock_codes):
+                            logger.info(f"多用户配置追加股票: {', '.join(c for c in merged if c not in stock_codes)}")
+                        stock_codes = merged
             except Exception as e:
                 logger.warning(f"加载多用户股票配置失败: {e}")
         
         if not stock_codes:
-            logger.error("未配置自选股列表，请在 .env 文件中设置 STOCK_LIST")
+            if self.config.analyze_requested_only:
+                logger.info("按需分析模式: 无用户请求个股，跳过个股分析")
+            else:
+                logger.error("未配置自选股列表，请在 .env 文件中设置 STOCK_LIST")
             return []
         
         logger.info(f"===== 开始分析 {len(stock_codes)} 只股票 =====")
