@@ -37,7 +37,13 @@ from stock_analysis.storage import get_db, DatabaseManager
 from stock_analysis.data_provider import DataFetcherManager
 from stock_analysis.data_provider.akshare_fetcher import AkshareFetcher, RealtimeQuote, ChipDistribution
 from stock_analysis.analyzer import OpenAIAnalyzer, AnalysisResult, STOCK_NAME_MAP
-from stock_analysis.notification import NotificationService, send_daily_report, send_notifications, send_text_notifications
+from stock_analysis.notification import (
+    NotificationService,
+    send_daily_report,
+    send_notifications,
+    send_text_notifications,
+    send_user_notifications,
+)
 from stock_analysis.search_service import SearchService, SearchResponse
 from stock_analysis.stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
 from stock_analysis.market_analyzer import MarketAnalyzer
@@ -492,6 +498,21 @@ class StockAnalysisPipeline:
         # 使用配置中的股票列表
         if stock_codes is None:
             stock_codes = self.config.stock_list
+            # 合并多用户配置中指定的股票（自动纳入分析范围，支持全 A 股）
+            try:
+                from stock_analysis.push_config import get_push_config
+                push_config = get_push_config()
+                if push_config.is_configured:
+                    extra = push_config.get_requested_stocks(self.config.stock_list)
+                    merged = list(stock_codes)
+                    for code in extra:
+                        if code not in merged:
+                            merged.append(code)
+                    if len(merged) > len(stock_codes):
+                        logger.info(f"多用户配置追加股票: {', '.join(c for c in merged if c not in stock_codes)}")
+                    stock_codes = merged
+            except Exception as e:
+                logger.warning(f"加载多用户股票配置失败: {e}")
         
         if not stock_codes:
             logger.error("未配置自选股列表，请在 .env 文件中设置 STOCK_LIST")
@@ -549,9 +570,9 @@ class StockAnalysisPipeline:
     
     def _send_notifications(self, results: List[AnalysisResult]) -> None:
         """
-        发送分析结果通知（多渠道独立分发）
+        发送分析结果通知
 
-        企业微信 / Bark 各自独立，互不影响
+        优先走多用户分发（push_config.yaml），无配置时回退单 key 多渠道推送
 
         Args:
             results: 分析结果列表
@@ -566,8 +587,19 @@ class StockAnalysisPipeline:
             filepath = self.notifier.save_report_to_file(report)
             logger.info(f"决策仪表盘日报已保存: {filepath}")
             
-            # 多渠道独立推送（企业微信 / Bark）
-            status = send_notifications(results, title=f"🎯 {datetime.now().strftime('%Y-%m-%d')} 决策仪表盘")
+            report_date = datetime.now().strftime('%Y-%m-%d')
+            
+            # 优先多用户分发（push_config.yaml）
+            from stock_analysis.push_config import get_push_config
+            push_config = get_push_config()
+            if push_config.is_configured:
+                status = send_user_notifications(
+                    results,
+                    title=f"🎯 {report_date} 决策仪表盘"
+                )
+            else:
+                # 回退：单 key 多渠道推送（企业微信 / Bark）
+                status = send_notifications(results, title=f"🎯 {report_date} 决策仪表盘")
             
             for channel, ok in status.items():
                 if ok:
@@ -672,15 +704,26 @@ def run_market_review(notifier: NotificationService, analyzer=None, search_servi
         review_report = market_analyzer.run_daily_review()
         
         if review_report:
-            # 多渠道独立推送（企业微信 / Bark）
+            # 优先多用户分发（push_config.yaml）
+            from stock_analysis.push_config import get_push_config
+            push_config = get_push_config()
+            
+            report_date = datetime.now().strftime('%Y-%m-%d')
             report_content = f"## 🎯 大盘复盘\n\n{review_report}"
             if len(report_content) > 3800:
                 report_content = report_content[:3800] + "\n...(已截断)"
             
-            status = send_text_notifications(
-                report_content,
-                title=f"🎯 {datetime.now().strftime('%Y-%m-%d')} 大盘复盘"
-            )
+            if push_config.is_configured:
+                status = send_user_notifications(
+                    [],
+                    market_report=report_content,
+                )
+            else:
+                # 回退：单 key 多渠道推送（企业微信 / Bark）
+                status = send_text_notifications(
+                    report_content,
+                    title=f"🎯 {report_date} 大盘复盘"
+                )
             
             for channel, ok in status.items():
                 if ok:

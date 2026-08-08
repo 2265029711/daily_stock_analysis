@@ -100,6 +100,10 @@ class MarketOverview:
     # 板块涨幅榜
     top_sectors: List[Dict] = field(default_factory=list)     # 涨幅前5板块
     bottom_sectors: List[Dict] = field(default_factory=list)  # 跌幅前5板块
+    
+    # 数据获取状态（用于报告标注，避免空白数据误导）
+    statistics_ok: bool = True   # 涨跌统计是否获取成功
+    sectors_ok: bool = True      # 板块涨跌榜是否获取成功
 
 
 class MarketAnalyzer:
@@ -203,6 +207,80 @@ class MarketAnalyzer:
         except Exception as e:
             logger.error(f"[大盘] 获取指数行情失败: {e}")
         
+        # 东财接口不可用时，腾讯指数兜底（免费、无需 Token）
+        if not indices:
+            indices = self._get_main_indices_from_tencent()
+        
+        return indices
+    
+    def _get_main_indices_from_tencent(self) -> List[MarketIndex]:
+        """
+        腾讯指数行情兜底（免费、无需 Token、稳定）
+        
+        当 AkShare（东财）接口不可用（反爬/断连）时使用。
+        数据来源：https://qt.gtimg.cn/q=s_sh000001
+        字段（~分隔）：[1]=名称 [2]=代码 [3]=最新点位 [4]=涨跌额 [5]=涨跌幅%
+        """
+        indices = []
+        try:
+            import requests as _requests
+            
+            # 指数代码 -> 腾讯符号
+            symbol_map = {
+                '000001': 's_sh000001',
+                '399001': 's_sz399001',
+                '399006': 's_sz399006',
+                '000688': 's_sh000688',
+                '000016': 's_sh000016',
+                '000300': 's_sh000300',
+            }
+            symbols = ','.join(
+                symbol_map[code] for code in self.MAIN_INDICES if code in symbol_map
+            )
+            
+            resp = _requests.get(
+                f"https://qt.gtimg.cn/q={symbols}",
+                timeout=10,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+                },
+            )
+            resp.encoding = 'gbk'
+            
+            for line in resp.text.split(';'):
+                if '="' not in line:
+                    continue
+                payload = line.split('="', 1)[1].rstrip('";')
+                fields = payload.split('~')
+                if len(fields) < 6:
+                    continue
+                code = fields[2]
+                if code not in self.MAIN_INDICES:
+                    continue
+                
+                def safe_float(idx: int, default: float = 0.0) -> float:
+                    try:
+                        return float(fields[idx])
+                    except (ValueError, IndexError):
+                        return default
+                
+                indices.append(MarketIndex(
+                    code=code,
+                    name=self.MAIN_INDICES[code],
+                    current=safe_float(3),
+                    change=safe_float(4),
+                    change_pct=safe_float(5),
+                ))
+            
+            if indices:
+                logger.info(f"[大盘] 腾讯指数兜底获取到 {len(indices)} 个指数")
+            else:
+                logger.warning("[大盘] 腾讯指数兜底返回为空")
+                
+        except Exception as e:
+            logger.warning(f"[大盘] 腾讯指数兜底失败: {e}")
+        
         return indices
     
     def _get_market_statistics(self, overview: MarketOverview):
@@ -238,6 +316,7 @@ class MarketAnalyzer:
                 
         except Exception as e:
             logger.error(f"[大盘] 获取涨跌统计失败: {e}")
+            overview.statistics_ok = False
     
     def _get_sector_rankings(self, overview: MarketOverview):
         """获取板块涨跌榜"""
@@ -272,6 +351,7 @@ class MarketAnalyzer:
                     
         except Exception as e:
             logger.error(f"[大盘] 获取板块涨跌榜失败: {e}")
+            overview.sectors_ok = False
     
     def _get_north_flow(self, overview: MarketOverview):
         """获取北向资金流入"""
@@ -395,6 +475,18 @@ class MarketAnalyzer:
         top_sectors_text = ", ".join([f"{s['name']}({s['change_pct']:+.2f}%)" for s in overview.top_sectors[:3]])
         bottom_sectors_text = ", ".join([f"{s['name']}({s['change_pct']:+.2f}%)" for s in overview.bottom_sectors[:3]])
         
+        # 数据缺失标注（避免对零值产生幻觉）
+        if not overview.indices:
+            indices_text = "（指数数据获取失败）"
+        if not overview.statistics_ok:
+            stats_note = "（涨跌统计数据获取失败，请勿编造具体数字）"
+        else:
+            stats_note = ""
+        if not overview.sectors_ok:
+            sectors_note = "（板块数据获取失败，请勿编造板块涨跌）"
+        else:
+            sectors_note = ""
+        
         # 新闻信息 - 支持 SearchResult 对象或字典
         news_text = ""
         for i, n in enumerate(news[:6], 1):
@@ -430,10 +522,12 @@ class MarketAnalyzer:
 - 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家
 - 两市成交额: {overview.total_amount:.0f} 亿元
 - 北向资金: {overview.north_flow:+.2f} 亿元
+{stats_note}
 
 ## 板块表现
 领涨: {top_sectors_text}
 领跌: {bottom_sectors_text}
+{sectors_note}
 
 ## 市场新闻
 {news_text if news_text else "暂无相关新闻"}
@@ -495,6 +589,30 @@ class MarketAnalyzer:
         top_text = "、".join([s['name'] for s in overview.top_sectors[:3]])
         bottom_text = "、".join([s['name'] for s in overview.bottom_sectors[:3]])
         
+        # 涨跌统计（失败时标注，避免空白误导）
+        if overview.statistics_ok:
+            stats_section = f"""### 三、涨跌统计
+| 指标 | 数值 |
+|------|------|
+| 上涨家数 | {overview.up_count} |
+| 下跌家数 | {overview.down_count} |
+| 涨停 | {overview.limit_up_count} |
+| 跌停 | {overview.limit_down_count} |
+| 两市成交额 | {overview.total_amount:.0f}亿 |
+| 北向资金 | {overview.north_flow:+.2f}亿 |"""
+        else:
+            stats_section = f"""### 三、涨跌统计
+> ⚠️ 涨跌统计数据获取失败（数据源不可用），本项暂时缺失"""
+
+        # 板块表现（失败时标注）
+        if overview.sectors_ok:
+            sectors_section = f"""### 四、板块表现
+- **领涨**: {top_text}
+- **领跌**: {bottom_text}"""
+        else:
+            sectors_section = f"""### 四、板块表现
+> ⚠️ 板块涨跌数据获取失败（数据源不可用），本项暂时缺失"""
+
         report = f"""## 📊 {overview.date} 大盘复盘
 
 ### 一、市场总结
@@ -503,19 +621,9 @@ class MarketAnalyzer:
 ### 二、主要指数
 {indices_text}
 
-### 三、涨跌统计
-| 指标 | 数值 |
-|------|------|
-| 上涨家数 | {overview.up_count} |
-| 下跌家数 | {overview.down_count} |
-| 涨停 | {overview.limit_up_count} |
-| 跌停 | {overview.limit_down_count} |
-| 两市成交额 | {overview.total_amount:.0f}亿 |
-| 北向资金 | {overview.north_flow:+.2f}亿 |
+{stats_section}
 
-### 四、板块表现
-- **领涨**: {top_text}
-- **领跌**: {bottom_text}
+{sectors_section}
 
 ### 五、风险提示
 市场有风险，投资需谨慎。以上数据仅供参考，不构成投资建议。

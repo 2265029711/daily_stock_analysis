@@ -11,16 +11,36 @@ A股自选股智能分析系统 - 搜索服务模块
 4. 搜索结果缓存和格式化
 """
 
+import json
 import logging
 import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from itertools import cycle
 
 logger = logging.getLogger(__name__)
+
+# 项目根目录（src/stock_analysis/ 上两级）
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# 搜索 Key 状态文件（持久化配额冷却信息）
+SEARCH_STATE_FILE = PROJECT_ROOT / 'data' / 'search_keys_state.json'
+
+# 配额冷却天数（Tavily 免费额度按月重置）
+QUOTA_COOLDOWN_DAYS = 30
+
+# 配额类错误关键词（用于识别"额度用尽"而非普通网络错误）
+QUOTA_ERROR_KEYWORDS = (
+    '429', '402',
+    'rate limit', 'rate_limit',
+    'quota', 'monthly limit', 'daily limit',
+    'insufficient', 'billing', 'credit',
+    '每月', '额度', '配额',
+)
 
 
 @dataclass
@@ -76,6 +96,9 @@ class BaseSearchProvider(ABC):
         self._key_cycle = cycle(api_keys) if api_keys else None
         self._key_usage: Dict[str, int] = {key: 0 for key in api_keys}
         self._key_errors: Dict[str, int] = {key: 0 for key in api_keys}
+        # 配额冷却状态：key -> 冷却截止时间戳（持久化到文件）
+        self._quota_until: Dict[str, float] = {}
+        self._load_quota_state()
     
     @property
     def name(self) -> str:
@@ -86,26 +109,88 @@ class BaseSearchProvider(ABC):
         """检查是否有可用的 API Key"""
         return bool(self._api_keys)
     
+    @staticmethod
+    def _is_quota_error(error_message: str) -> bool:
+        """
+        判断是否为配额用尽类错误（区别于普通网络/服务错误）
+        
+        配额错误需要长时间冷却（按月重置），普通错误只需短时重试
+        """
+        msg = (error_message or '').lower()
+        return any(k in msg for k in QUOTA_ERROR_KEYWORDS)
+    
+    def _load_quota_state(self) -> None:
+        """加载持久化的配额冷却状态"""
+        try:
+            if SEARCH_STATE_FILE.exists():
+                data = json.loads(SEARCH_STATE_FILE.read_text(encoding='utf-8'))
+                self._quota_until = data.get(self._name, {})
+                now = time.time()
+                active = {k: v for k, v in self._quota_until.items() if v > now}
+                if active:
+                    logger.info(f"[{self._name}] 加载到 {len(active)} 个冷却中的 API Key")
+                self._quota_until = active
+        except Exception as e:
+            logger.warning(f"[{self._name}] 加载搜索 Key 状态失败: {e}")
+    
+    def _save_quota_state(self) -> None:
+        """持久化配额冷却状态"""
+        try:
+            SEARCH_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            state = {}
+            if SEARCH_STATE_FILE.exists():
+                state = json.loads(SEARCH_STATE_FILE.read_text(encoding='utf-8'))
+            now = time.time()
+            state[self._name] = {k: v for k, v in self._quota_until.items() if v > now}
+            SEARCH_STATE_FILE.write_text(
+                json.dumps(state, ensure_ascii=False, indent=2),
+                encoding='utf-8'
+            )
+        except Exception as e:
+            logger.warning(f"[{self._name}] 保存搜索 Key 状态失败: {e}")
+    
+    def _mark_quota_exhausted(self, key: str) -> None:
+        """标记 API Key 配额用尽（冷却 QUOTA_COOLDOWN_DAYS 天）"""
+        self._quota_until[key] = time.time() + QUOTA_COOLDOWN_DAYS * 86400
+        self._save_quota_state()
+        logger.warning(
+            f"[{self._name}] API Key {key[:8]}... 配额已用尽，"
+            f"冷却 {QUOTA_COOLDOWN_DAYS} 天（{datetime.fromtimestamp(self._quota_until[key]).strftime('%Y-%m-%d')} 恢复）"
+        )
+    
     def _get_next_key(self) -> Optional[str]:
         """
-        获取下一个可用的 API Key（负载均衡）
+        获取下一个可用的 API Key（负载均衡 + 配额冷却）
         
-        策略：轮询 + 跳过错误过多的 key
+        策略：
+        1. 轮询跳过配额冷却中的 key（持久化状态）
+        2. 跳过错误次数过多的 key（超过 3 次）
+        3. 全部 key 配额耗尽时返回 None（快速失败，不再浪费请求）
         """
         if not self._key_cycle:
             return None
         
-        # 最多尝试所有 key
+        now = time.time()
+        
+        # 第一轮：跳过配额冷却和错误过多的 key
         for _ in range(len(self._api_keys)):
             key = next(self._key_cycle)
-            # 跳过错误次数过多的 key（超过 3 次）
+            if self._quota_until.get(key, 0) > now:
+                continue
             if self._key_errors.get(key, 0) < 3:
                 return key
         
-        # 所有 key 都有问题，重置错误计数并返回第一个
-        logger.warning(f"[{self._name}] 所有 API Key 都有错误记录，重置错误计数")
+        # 第二轮：所有 key 错误过多，重置错误计数后再试（仍跳过配额冷却）
+        logger.warning(f"[{self._name}] 所有 API Key 错误过多，重置错误计数")
         self._key_errors = {key: 0 for key in self._api_keys}
-        return self._api_keys[0] if self._api_keys else None
+        for _ in range(len(self._api_keys)):
+            key = next(self._key_cycle)
+            if self._quota_until.get(key, 0) <= now:
+                return key
+        
+        # 全部 key 配额冷却中：快速失败
+        logger.warning(f"[{self._name}] 所有 API Key 均在配额冷却期内，跳过本次搜索")
+        return None
     
     def _record_success(self, key: str) -> None:
         """记录成功使用"""
@@ -126,7 +211,7 @@ class BaseSearchProvider(ABC):
     
     def search(self, query: str, max_results: int = 5) -> SearchResponse:
         """
-        执行搜索
+        执行搜索（带配额冷却和负载均衡）
         
         Args:
             query: 搜索关键词
@@ -142,7 +227,7 @@ class BaseSearchProvider(ABC):
                 results=[],
                 provider=self._name,
                 success=False,
-                error_message=f"{self._name} 未配置 API Key"
+                error_message=f"{self._name} 所有 API Key 配额耗尽或未配置"
             )
         
         start_time = time.time()
@@ -154,12 +239,19 @@ class BaseSearchProvider(ABC):
                 self._record_success(api_key)
                 logger.info(f"[{self._name}] 搜索 '{query}' 成功，返回 {len(response.results)} 条结果，耗时 {response.search_time:.2f}s")
             else:
-                self._record_error(api_key)
+                # 配额类错误：持久化冷却；普通错误：内存计数
+                if self._is_quota_error(response.error_message or ''):
+                    self._mark_quota_exhausted(api_key)
+                else:
+                    self._record_error(api_key)
             
             return response
             
         except Exception as e:
-            self._record_error(api_key)
+            if self._is_quota_error(str(e)):
+                self._mark_quota_exhausted(api_key)
+            else:
+                self._record_error(api_key)
             elapsed = time.time() - start_time
             logger.error(f"[{self._name}] 搜索 '{query}' 失败: {e}")
             return SearchResponse(

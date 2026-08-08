@@ -10,7 +10,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from stock_analysis.analyzer import AnalysisResult
 from stock_analysis.config import Config, get_config
-from stock_analysis.notification import BarkNotifier, NotificationService, send_notifications, send_text_notifications
+from stock_analysis.notification import (
+    BarkNotifier,
+    NotificationService,
+    send_notifications,
+    send_text_notifications,
+    send_user_notifications,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -34,11 +40,11 @@ def make_result(code='600519', name='贵州茅台', advice='买入', score=75):
     )
 
 
-def make_full_result():
+def make_full_result(code='600519', name='贵州茅台'):
     """构造带完整数据（实时行情/趋势/情报/结论）的分析结果"""
     result = AnalysisResult(
-        code='600519',
-        name='贵州茅台',
+        code=code,
+        name=name,
         sentiment_score=75,
         trend_prediction='看多',
         operation_advice='买入',
@@ -405,3 +411,170 @@ class TestBarkContent:
         body = mock_post.call_args.kwargs['json']['body']
         assert '贵州茅台' in body
         assert '买入' in body
+
+
+# ========== 多用户推送测试（push_config.yaml） ==========
+
+def make_push_config_file(tmp_path, yaml_content):
+    import yaml
+    from stock_analysis import push_config as pc
+    path = tmp_path / 'push_config.yaml'
+    path.write_text(yaml_content, encoding='utf-8')
+    # 让 push_config 模块指向测试文件
+    monkeypatch_target = 'stock_analysis.push_config.DEFAULT_CONFIG_PATH'
+    return path
+
+
+class TestMultiUserPush:
+
+    def test_two_users_receive_filtered_content(self, monkeypatch, tmp_path):
+        """两个用户各自收到过滤后的内容，互不影响"""
+        # 用户B(股1) 和 用户C(股2)
+        yaml = """
+users:
+  - name: 用户B
+    device_key: key-b
+    group: 个股分析
+    stocks: [600519]
+  - name: 用户C
+    device_key: key-c
+    group: 个股分析
+    stocks: [300750]
+"""
+        path = tmp_path / 'push_config.yaml'
+        path.write_text(yaml, encoding='utf-8')
+        monkeypatch.setattr('stock_analysis.push_config.DEFAULT_CONFIG_PATH', path)
+        monkeypatch.setenv('STOCK_LIST', '600519,300750')
+
+        result_maotai = make_full_result()
+        result_catl = make_full_result(code='300750', name='宁德时代')
+        result_catl.realtime_data['price'] = 388.07
+        result_catl.dashboard['core_conclusion']['one_sentence'] = '宁德结论'
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            status = send_user_notifications([result_maotai, result_catl], title='测试')
+
+        assert status == {'用户B': True, '用户C': True}
+        # 两次请求：两个不同的 device key
+        urls = [call.args[0] for call in mock_post.call_args_list]
+        assert len(urls) == 2
+        assert 'key-b' in urls[0]
+        assert 'key-c' in urls[1]
+
+        # 用户B 只收到茅台，用户C 只收到宁德
+        bodies = [call.kwargs['json']['body'] for call in mock_post.call_args_list]
+        assert '贵州茅台' in bodies[0]
+        assert '宁德时代' not in bodies[0]
+        assert '宁德时代' in bodies[1]
+        assert '贵州茅台' not in bodies[1]
+
+    def test_market_only_user(self, monkeypatch, tmp_path):
+        """只收大盘的用户收到复盘报告"""
+        yaml = """
+users:
+  - name: 用户A
+    device_key: key-a
+    group: 大盘走势
+    push_market: true
+    stocks: []
+"""
+        path = tmp_path / 'push_config.yaml'
+        path.write_text(yaml, encoding='utf-8')
+        monkeypatch.setattr('stock_analysis.push_config.DEFAULT_CONFIG_PATH', path)
+
+        with patch('stock_analysis.notification.requests.post', side_effect=mock_requests_factory()) as mock_post:
+            status = send_user_notifications([make_full_result()], market_report='大盘复盘内容')
+
+        assert status == {'用户A': True}
+        assert mock_post.call_count == 1
+        body = mock_post.call_args.kwargs['json']['body']
+        assert '大盘复盘内容' in body
+
+    def test_user_error_does_not_affect_others(self, monkeypatch, tmp_path):
+        """一个用户发送失败不影响其他用户"""
+        yaml = """
+users:
+  - name: 用户B
+    device_key: key-b
+    stocks: [600519]
+  - name: 用户C
+    device_key: key-c
+    stocks: [300750]
+"""
+        path = tmp_path / 'push_config.yaml'
+        path.write_text(yaml, encoding='utf-8')
+        monkeypatch.setattr('stock_analysis.push_config.DEFAULT_CONFIG_PATH', path)
+        monkeypatch.setenv('STOCK_LIST', '600519,300750')
+
+        def fake_post(url, **kwargs):
+            response = Mock()
+            response.status_code = 200
+            if 'key-b' in url:
+                raise Exception('Bark 网络错误')
+            response.json.return_value = {'code': 200}
+            return response
+
+        result_maotai = make_full_result()
+        result_catl = make_full_result(code='300750', name='宁德时代')
+
+        with patch('stock_analysis.notification.requests.post', side_effect=fake_post):
+            status = send_user_notifications([result_maotai, result_catl], title='测试')
+
+        assert status['用户B'] is False
+        assert status['用户C'] is True
+
+    def test_no_config_falls_back_empty(self, monkeypatch):
+        """无 push_config 配置时返回空（走旧逻辑）"""
+        monkeypatch.setenv('STOCK_LIST', '600519')
+        with patch('stock_analysis.push_config.DEFAULT_CONFIG_PATH') as mock_path:
+            mock_path.exists.return_value = False
+            from stock_analysis.notification import send_user_notifications
+            status = send_user_notifications([make_result()])
+        assert status == {}
+
+
+# ========== 整股截断测试（不拆分单只股票信息） ==========
+
+class TestWholeStockTruncation:
+
+    def test_long_content_drops_whole_stocks(self, monkeypatch):
+        """内容超长时整股丢弃（从评分最低开始），不切碎单只股票"""
+        from stock_analysis import notification as notif
+
+        # 构造 8 只内容较大的股票（每只约 600+ 字符）
+        results = []
+        for i in range(8):
+            r = make_full_result()
+            r.code = f'60000{i}'
+            r.name = f'测试股票{i}'
+            r.sentiment_score = 90 - i * 5
+            r.dashboard['battle_plan']['sniper_points'] = {
+                'ideal_buy': f'理想买入点：1{i}.00元附近（MA5附近，乖离率0.4{i}%）',
+                'stop_loss': f'止损位：1{i}.50元（跌破MA20支撑）',
+                'take_profit': f'目标位：2{i}.00元（整数关口+前高）',
+            }
+            results.append(r)
+
+        content = notif._generate_bark_content(results)
+
+        # 总长不超限
+        assert len(content) <= notif.MAX_BARK_LENGTH + 20
+        # 有省略标注
+        assert '已省略' in content
+        # 出现过的股票代码必须完整（整只出现，不半截）
+        appeared_codes = []
+        for r in results:
+            if f'({r.code})' in content:
+                appeared_codes.append(r.code)
+        assert appeared_codes, "至少应有一只完整股票"
+        # 高分股票优先保留
+        assert '600000' in appeared_codes  # 评分 90 最高，必须保留
+        # 低分股票被省略
+        assert '600007' not in content  # 评分最低的整只被丢弃
+
+    def test_normal_content_no_truncation(self, monkeypatch):
+        """内容未超限时不省略任何股票"""
+        from stock_analysis import notification as notif
+        content = notif._generate_bark_content([make_full_result(), make_result()])
+        assert '已省略' not in content
+        assert '贵州茅台' in content
