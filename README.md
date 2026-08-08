@@ -78,7 +78,7 @@
 
 #### 5. 完成！
 
-默认每个工作日 **18:00（北京时间）** 自动执行
+默认每个工作日 **15:00（北京时间）** 自动执行
 
 ### 方式二：本地运行
 
@@ -229,12 +229,14 @@ PYTHONPATH=src python scripts/check_env.py
 
 ### 4. 定时配置（GitHub Actions）
 
+默认每个工作日 **15:00（北京时间）** 自动执行多用户推送。
+
 编辑 `.github/workflows/daily_analysis.yml`:
 
 ```yaml
 schedule:
   # UTC 时间，北京时间 = UTC + 8
-  - cron: '0 10 * * 1-5'   # 周一到周五 18:00（北京时间）
+  - cron: '0 7 * * 1-5'   # 周一到周五 15:00（北京时间）
 ```
 
 | 北京时间 | UTC cron |
