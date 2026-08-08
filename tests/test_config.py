@@ -13,18 +13,15 @@ from config import Config, get_config
 
 @pytest.fixture(autouse=True)
 def reset_config(monkeypatch):
-    """每个测试前重置配置单例，并清理相关环境变量"""
-    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
-    monkeypatch.delenv('OPENAI_BASE_URL', raising=False)
-    monkeypatch.delenv('OPENAI_MODEL', raising=False)
-    monkeypatch.delenv('OPENAI_REQUEST_DELAY', raising=False)
-    monkeypatch.delenv('OPENAI_MAX_RETRIES', raising=False)
-    monkeypatch.delenv('OPENAI_RETRY_DELAY', raising=False)
-    monkeypatch.delenv('BARK_DEVICE_KEY', raising=False)
-    monkeypatch.delenv('BARK_SERVER_URL', raising=False)
-    monkeypatch.delenv('BARK_GROUP', raising=False)
-    monkeypatch.delenv('WECHAT_WEBHOOK_URL', raising=False)
-    monkeypatch.delenv('STOCK_LIST', raising=False)
+    """每个测试前重置配置单例，并用空值屏蔽 .env 中的真实配置"""
+    for env in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
+                'BARK_DEVICE_KEY', 'BARK_SERVER_URL', 'BARK_GROUP',
+                'WECHAT_WEBHOOK_URL', 'STOCK_LIST'):
+        monkeypatch.setenv(env, '')
+    # 数值型配置设为文档默认值（空串会导致 float/int 解析报错）
+    monkeypatch.setenv('OPENAI_REQUEST_DELAY', '2.0')
+    monkeypatch.setenv('OPENAI_MAX_RETRIES', '5')
+    monkeypatch.setenv('OPENAI_RETRY_DELAY', '5.0')
     Config.reset_instance()
     yield
     Config.reset_instance()

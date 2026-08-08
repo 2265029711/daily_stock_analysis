@@ -421,10 +421,20 @@ class OpenAIAnalyzer:
         try:
             from openai import OpenAI
             
+            # base_url 归一化：用户可能填写带 /chat/completions 的完整路径，需要去掉
+            # （OpenAI SDK 会自动追加 /chat/completions，保留会导致双路径）
+            base_url = config.openai_base_url
+            if base_url:
+                base_url = base_url.rstrip('/')
+                for suffix in ('/chat/completions', '/completions', '/responses'):
+                    if base_url.endswith(suffix):
+                        base_url = base_url[: -len(suffix)]
+                        break
+            
             # base_url 可选，不填则使用 OpenAI 官方默认地址
             client_kwargs = {"api_key": self._api_key}
-            if config.openai_base_url and config.openai_base_url.startswith('http'):
-                client_kwargs["base_url"] = config.openai_base_url
+            if base_url and base_url.startswith('http'):
+                client_kwargs["base_url"] = base_url
             
             self._openai_client = OpenAI(**client_kwargs)
             self._current_model_name = config.openai_model

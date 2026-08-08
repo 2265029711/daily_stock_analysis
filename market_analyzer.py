@@ -11,6 +11,7 @@
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -22,6 +23,33 @@ from config import get_config
 from search_service import SearchService
 
 logger = logging.getLogger(__name__)
+
+
+def _call_with_retry(fn, *args, retries: int = 3, delay: float = 3.0, **kwargs):
+    """
+    调用 akshare 接口并自动重试（东财接口偶发瞬时断连）
+    
+    Args:
+        fn: akshare 函数
+        retries: 最大重试次数
+        delay: 重试间隔（秒）
+        
+    Returns:
+        fn 的返回值
+        
+    Raises:
+        Exception: 重试耗尽后抛出最后一次异常
+    """
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            last_error = e
+            if attempt < retries - 1:
+                logger.warning(f"[大盘] 接口调用失败(第 {attempt + 1}/{retries} 次)，{delay:.1f}s 后重试: {str(e)[:100]}")
+                time.sleep(delay)
+    raise last_error
 
 
 @dataclass
@@ -139,8 +167,8 @@ class MarketAnalyzer:
         try:
             logger.info("[大盘] 获取主要指数实时行情...")
             
-            # 使用 akshare 获取指数行情
-            df = ak.stock_zh_index_spot_em()
+            # 使用 akshare 获取指数行情（带重试）
+            df = _call_with_retry(ak.stock_zh_index_spot_em)
             
             if df is not None and not df.empty:
                 for code, name in self.MAIN_INDICES.items():
@@ -182,8 +210,8 @@ class MarketAnalyzer:
         try:
             logger.info("[大盘] 获取市场涨跌统计...")
             
-            # 获取全部A股实时行情
-            df = ak.stock_zh_a_spot_em()
+            # 获取全部A股实时行情（带重试）
+            df = _call_with_retry(ak.stock_zh_a_spot_em)
             
             if df is not None and not df.empty:
                 # 涨跌统计
@@ -216,8 +244,8 @@ class MarketAnalyzer:
         try:
             logger.info("[大盘] 获取板块涨跌榜...")
             
-            # 获取行业板块行情
-            df = ak.stock_board_industry_name_em()
+            # 获取行业板块行情（带重试）
+            df = _call_with_retry(ak.stock_board_industry_name_em)
             
             if df is not None and not df.empty:
                 change_col = '涨跌幅'
@@ -248,6 +276,11 @@ class MarketAnalyzer:
     def _get_north_flow(self, overview: MarketOverview):
         """获取北向资金流入"""
         try:
+            # akshare 新版本已移除北向资金接口（交易所 2024 年起停止披露实时数据）
+            if not hasattr(ak, 'stock_hsgt_north_net_flow_in_em'):
+                logger.info("[大盘] 北向资金接口已停用（akshare 新版本已移除），跳过")
+                return
+            
             logger.info("[大盘] 获取北向资金...")
             
             # 获取北向资金数据

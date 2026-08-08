@@ -15,13 +15,10 @@ from notification import BarkNotifier, NotificationService, send_notifications, 
 
 @pytest.fixture(autouse=True)
 def reset_config(monkeypatch):
-    """重置配置单例并清理通知相关环境变量"""
-    monkeypatch.delenv('WECHAT_WEBHOOK_URL', raising=False)
-    monkeypatch.delenv('BARK_DEVICE_KEY', raising=False)
-    monkeypatch.delenv('BARK_SERVER_URL', raising=False)
-    monkeypatch.delenv('BARK_GROUP', raising=False)
-    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
-    monkeypatch.delenv('STOCK_LIST', raising=False)
+    """重置配置单例，并用空值屏蔽 .env 中的真实配置"""
+    for env in ('WECHAT_WEBHOOK_URL', 'BARK_DEVICE_KEY', 'BARK_SERVER_URL',
+                'BARK_GROUP', 'OPENAI_API_KEY', 'STOCK_LIST'):
+        monkeypatch.setenv(env, '')
     Config.reset_instance()
     yield
     Config.reset_instance()

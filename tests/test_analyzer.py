@@ -15,10 +15,15 @@ from config import Config, get_config
 
 @pytest.fixture(autouse=True)
 def reset_config(monkeypatch):
-    """重置配置单例并清理环境变量"""
+    """重置配置单例，并用空值屏蔽 .env 中的真实配置"""
     for env in ('OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL',
-                'OPENAI_REQUEST_DELAY', 'OPENAI_MAX_RETRIES', 'OPENAI_RETRY_DELAY'):
-        monkeypatch.delenv(env, raising=False)
+                'BARK_DEVICE_KEY', 'BARK_SERVER_URL', 'BARK_GROUP',
+                'WECHAT_WEBHOOK_URL', 'STOCK_LIST'):
+        monkeypatch.setenv(env, '')
+    # 数值型配置设为文档默认值（空串会导致 float/int 解析报错）
+    monkeypatch.setenv('OPENAI_REQUEST_DELAY', '2.0')
+    monkeypatch.setenv('OPENAI_MAX_RETRIES', '5')
+    monkeypatch.setenv('OPENAI_RETRY_DELAY', '5.0')
     Config.reset_instance()
     yield
     Config.reset_instance()
@@ -107,7 +112,7 @@ def test_is_available_with_client(monkeypatch):
 
 def test_is_available_without_client(monkeypatch):
     """无有效 Key 时 is_available 返回 False"""
-    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    monkeypatch.setenv('OPENAI_API_KEY', '')
     Config.reset_instance()
     analyzer = OpenAIAnalyzer()
     assert analyzer.is_available() is False
@@ -125,7 +130,7 @@ def test_placeholder_key_invalid(monkeypatch):
 def test_init_without_model(monkeypatch):
     """有 Key 但未配置 OPENAI_MODEL 时模型名为 None（不预设默认）"""
     monkeypatch.setenv('OPENAI_API_KEY', 'sk-test-key-123456')
-    monkeypatch.delenv('OPENAI_MODEL', raising=False)
+    monkeypatch.setenv('OPENAI_MODEL', '')
     Config.reset_instance()
     analyzer = OpenAIAnalyzer()
     assert analyzer.is_available() is True
@@ -231,7 +236,7 @@ def test_analyze_text_fallback(monkeypatch):
 
 def test_analyze_without_key(monkeypatch):
     """无 API Key 时 analyze() 返回默认失败结果"""
-    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    monkeypatch.setenv('OPENAI_API_KEY', '')
     Config.reset_instance()
     analyzer = OpenAIAnalyzer()
     context = {'code': '600519', 'today': {'close': 1820.0}}
